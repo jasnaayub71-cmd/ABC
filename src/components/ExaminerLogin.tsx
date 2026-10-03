@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import { apiFetch, setStoredSessionToken } from '../utils/api.ts';
 
 interface ExaminerLoginProps {
   onLoginSuccess: (username: string) => void;
@@ -23,13 +24,12 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
     setLoading(true);
 
     try {
-      const response = await fetch('/api/login/examiner', {
+      const response = await apiFetch('/api/login/examiner', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ username: username.trim(), password }),
       });
 
@@ -47,11 +47,7 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
       }
 
       if (data?.token) {
-        try {
-          sessionStorage.setItem('results_portal_token', data.token);
-        } catch {
-          // ignore storage error
-        }
+        setStoredSessionToken(data.token);
       }
 
       onLoginSuccess(data.username);

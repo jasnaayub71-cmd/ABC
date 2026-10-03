@@ -274,45 +274,74 @@ function createSession(data: Omit<SessionData, 'createdAt' | 'expiresAt'>): stri
   return token;
 }
 
+function verifySessionToken(token: string | undefined | null): SessionData | null {
+  if (!token || typeof token !== 'string') return null;
+
+  // Check in-memory map first
+  const cached = sessions.get(token);
+  if (cached && Date.now() <= cached.expiresAt) {
+    return cached;
+  }
+
+  // Stateless HMAC verification (ensures Vercel serverless multi-instance persistence)
+  const parts = token.split('.');
+  if (parts.length === 2) {
+    const [payload, sig] = parts;
+    const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+        const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as SessionData;
+        if (parsed && Date.now() <= parsed.expiresAt) {
+          sessions.set(token, parsed);
+          return parsed;
+        }
+      }
+    } catch {
+      // Invalid signature or corrupted JSON
+    }
+  }
+  return null;
+}
+
 function getSession(req: Request): SessionData | null {
   if ((req as any).sessionData) {
     return (req as any).sessionData;
   }
 
+  // Collect candidate tokens from all possible channels
   const authHeader = req.headers['authorization'];
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-  const headerToken = (req.headers['x-session-token'] as string) || bearerToken;
-  const token = req.cookies?.[SESSION_COOKIE_NAME] || headerToken;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+  const xSessionToken = (req.headers['x-session-token'] as string)?.trim() || null;
+  const cookieToken = (req.cookies?.[SESSION_COOKIE_NAME] as string)?.trim() || null;
 
-  if (token && typeof token === 'string') {
-    // Check in-memory map first
-    const cached = sessions.get(token);
-    if (cached && Date.now() <= cached.expiresAt) {
-      (req as any).sessionData = cached;
-      return cached;
-    }
-
-    // Stateless HMAC verification (ensures Vercel serverless multi-instance persistence)
-    const parts = token.split('.');
-    if (parts.length === 2) {
-      const [payload, sig] = parts;
-      const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
-      try {
-        if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-          const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as SessionData;
-          if (parsed && Date.now() <= parsed.expiresAt) {
-            sessions.set(token, parsed);
-            (req as any).sessionData = parsed;
-            return parsed;
-          }
-        }
-      } catch {
-        // invalid signature or JSON
-      }
+  // 1. Verify bearer token from Authorization header
+  if (bearerToken) {
+    const session = verifySessionToken(bearerToken);
+    if (session) {
+      (req as any).sessionData = session;
+      return session;
     }
   }
 
-  // Fallback role for preview environments
+  // 2. Verify x-session-token header
+  if (xSessionToken) {
+    const session = verifySessionToken(xSessionToken);
+    if (session) {
+      (req as any).sessionData = session;
+      return session;
+    }
+  }
+
+  // 3. Verify session cookie
+  if (cookieToken) {
+    const session = verifySessionToken(cookieToken);
+    if (session) {
+      (req as any).sessionData = session;
+      return session;
+    }
+  }
+
+  // 4. Role simulation fallback for preview environments
   const requestedRole = req.headers['x-role'] as string;
   if (requestedRole === 'student') {
     const student = db.students[0];
@@ -361,12 +390,19 @@ function setSessionCookie(req: Request, res: Response, token: string): void {
     secure: isSecure,
     path: '/',
   });
+  res.setHeader('x-session-token', token);
 }
 
 // --- Auth Middlewares ---
 function requireExaminer(req: Request, res: Response, next: NextFunction) {
   const session = getSession(req);
   if (!session || session.role !== 'examiner') {
+    const hasBearer = !!req.headers['authorization'];
+    const hasHeaderToken = !!req.headers['x-session-token'];
+    const hasCookie = !!req.cookies?.[SESSION_COOKIE_NAME];
+    console.warn(
+      `[requireExaminer:DENIED] ${req.method} ${req.path} | Bearer: ${hasBearer} | HeaderToken: ${hasHeaderToken} | Cookie: ${hasCookie} | Detected: ${session?.role || 'none'}`
+    );
     return res.status(401).json({ error: 'Examiner authorization required. Please log in.' });
   }
   (req as any).sessionData = session;
@@ -1308,9 +1344,8 @@ apiRouter.use((err: any, req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Mount the apiRouter on BOTH '/api' and '/' for complete Vercel rewrite compatibility
+// Mount apiRouter exclusively at '/api' so root '/' and frontend routes are served by Vite
 app.use('/api', apiRouter);
-app.use('/', apiRouter);
 
 // Export app for Vercel Serverless Function (api/index.ts)
 export { app };

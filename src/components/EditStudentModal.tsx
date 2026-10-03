@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit, AlertCircle, Key, User, BookOpen, Hash } from 'lucide-react';
+import { apiFetch } from '../utils/api.ts';
 
 interface EditStudentModalProps {
   isOpen: boolean;
@@ -56,7 +57,7 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/examiner/student/${student.id}/edit`, {
+      const res = await apiFetch(`/api/examiner/student/${student.id}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,9 +69,17 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`);
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to update student');
+        throw new Error(data?.error || 'Failed to update student');
       }
 
       onStudentUpdated(data.student);

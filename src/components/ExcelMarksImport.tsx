@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { StudentRecord } from '../types/index.ts';
+import { apiFetch } from '../utils/api.ts';
 
 interface ExcelMarksImportProps {
   students: StudentRecord[];
@@ -63,14 +64,9 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
   // 1. Download Excel Template (.xlsx)
   const handleDownloadTemplate = async () => {
     try {
-      // First try fetching latest template from backend
-      const token = sessionStorage.getItem('results_portal_token');
-      const headers: Record<string, string> = { 'Accept': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       let rows: any[] = [];
       try {
-        const res = await fetch('/api/examiner/excel-template', { credentials: 'include', headers });
+        const res = await apiFetch('/api/examiner/excel-template');
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.rows)) {
@@ -280,13 +276,6 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
     setIsImporting(true);
 
     try {
-      const token = sessionStorage.getItem('results_portal_token');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const validRowsToImport = parsedRows
         .filter((r) => r.isValid)
         .map((r) => ({
@@ -298,10 +287,11 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
           maxMarks: r.maxMarks,
         }));
 
-      const res = await fetch('/api/examiner/import-marks', {
+      const res = await apiFetch('/api/examiner/import-marks', {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           rows: validRowsToImport,
           replaceExisting,

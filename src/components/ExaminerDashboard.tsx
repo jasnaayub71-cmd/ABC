@@ -25,6 +25,7 @@ import { EditStudentModal } from './EditStudentModal.tsx';
 import { MarksManagerModal } from './MarksManagerModal.tsx';
 import { ChangePasswordModal } from './ChangePasswordModal.tsx';
 import { ExcelMarksImport } from './ExcelMarksImport.tsx';
+import { apiFetch } from '../utils/api.ts';
 
 interface ExaminerDashboardProps {
   onLogout: () => void;
@@ -64,7 +65,7 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
     setError(null);
     try {
       const qParam = searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
-      const res = await fetch(`/api/examiner/students${qParam}`);
+      const res = await apiFetch(`/api/examiner/students${qParam}`);
       if (!res.ok) {
         throw new Error('Failed to load students');
       }
@@ -90,7 +91,7 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
     setIsTogglingPublish(true);
     try {
       const nextState = !isPublished;
-      const res = await fetch('/api/examiner/toggle-publish', {
+      const res = await apiFetch('/api/examiner/toggle-publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isPublished: nextState }),
@@ -98,7 +99,7 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to toggle publication');
+        throw new Error(data?.error || 'Failed to toggle publication');
       }
 
       setIsPublished(data.isPublished);
@@ -121,12 +122,12 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
     }
 
     try {
-      const res = await fetch(`/api/examiner/student/${studentId}/delete`, {
+      const res = await apiFetch(`/api/examiner/student/${studentId}/delete`, {
         method: 'POST',
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to delete student');
+        throw new Error(data?.error || 'Failed to delete student');
       }
 
       showNotification('success', `Student "${studentName}" deleted successfully.`);
@@ -138,9 +139,9 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
 
   const handleFillDemoMarks = async () => {
     try {
-      const res = await fetch('/api/examiner/demo-fill-marks', { method: 'POST' });
+      const res = await apiFetch('/api/examiner/demo-fill-marks', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to generate demo marks');
+      if (!res.ok) throw new Error(data?.error || 'Failed to generate demo marks');
 
       showNotification('success', 'Filled realistic marks for all candidates and published results.');
       fetchStudents();
@@ -155,9 +156,9 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
     }
 
     try {
-      const res = await fetch('/api/examiner/reset-blank-marks', { method: 'POST' });
+      const res = await apiFetch('/api/examiner/reset-blank-marks', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to reset marks');
+      if (!res.ok) throw new Error(data?.error || 'Failed to reset marks');
 
       showNotification('success', 'All marks reset to blank as per initial state.');
       fetchStudents();
@@ -171,13 +172,13 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
     if (!instInput.trim()) return;
 
     try {
-      const res = await fetch('/api/examiner/institute-name', {
+      const res = await apiFetch('/api/examiner/institute-name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instituteName: instInput.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update institute name');
+      if (!res.ok) throw new Error(data?.error || 'Failed to update institute name');
 
       setInstituteName(data.instituteName);
       setIsEditingInstitute(false);

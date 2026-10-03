@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, UserPlus, AlertCircle, Key, User, BookOpen, Hash } from 'lucide-react';
+import { apiFetch } from '../utils/api.ts';
 
 interface AddStudentModalProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     try {
-      const res = await fetch('/api/examiner/student/new', {
+      const res = await apiFetch('/api/examiner/student/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -59,9 +60,17 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`);
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to add student');
+        throw new Error(data?.error || 'Failed to add student');
       }
 
       onStudentAdded(data.student);

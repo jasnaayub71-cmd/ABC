@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, AlertCircle, CheckCircle2, Award, BookOpen, Layers } from 'lucide-react';
 import { MarkRecord } from '../types/index.ts';
+import { apiFetch } from '../utils/api.ts';
 
 interface MarksManagerModalProps {
   isOpen: boolean;
@@ -36,10 +37,10 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/examiner/student/${student.id}/marks`);
+      const res = await apiFetch(`/api/examiner/student/${student.id}/marks`);
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch marks');
+        throw new Error(data?.error || 'Failed to fetch marks');
       }
       setMarks(data.marks || []);
 
@@ -107,7 +108,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
     setAddingMark(true);
     try {
-      const res = await fetch(`/api/examiner/student/${student.id}/marks`, {
+      const res = await apiFetch(`/api/examiner/student/${student.id}/marks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,7 +122,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to add marks');
+        throw new Error(data?.error || 'Failed to add marks');
       }
 
       showSuccessMsg('Mark entry added successfully.');
@@ -173,7 +174,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
     setSavingRowId(markId);
     try {
-      const res = await fetch(`/api/examiner/student/${student.id}/marks`, {
+      const res = await apiFetch(`/api/examiner/student/${student.id}/marks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +189,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to update mark');
+        throw new Error(data?.error || 'Failed to update mark');
       }
 
       showSuccessMsg('Saved.');
@@ -206,7 +207,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
     setError(null);
     try {
-      const res = await fetch(`/api/examiner/student/${student.id}/marks`, {
+      const res = await apiFetch(`/api/examiner/student/${student.id}/marks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +218,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to delete mark');
+        throw new Error(data?.error || 'Failed to delete mark');
       }
 
       showSuccessMsg('Mark deleted.');

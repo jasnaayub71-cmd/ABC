@@ -7,6 +7,7 @@ import { ExaminerDashboard } from './components/ExaminerDashboard.tsx';
 import { GradingRulesModal } from './components/GradingRulesModal.tsx';
 import { ShieldCheck, BookOpen, Clock, Award, Sparkles, UserCheck, GraduationCap, ArrowLeft } from 'lucide-react';
 import universityCrest from './assets/images/university_crest_1790954948850.jpg';
+import { apiFetch, setStoredSessionToken, clearStoredSessionToken } from './utils/api.ts';
 
 export default function App() {
   const [session, setSession] = useState<{
@@ -35,14 +36,7 @@ export default function App() {
   // Sync session with backend in background
   const syncSession = async () => {
     try {
-      const token = sessionStorage.getItem('results_portal_token');
-      const headers: Record<string, string> = { 'Accept': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/session', {
-        credentials: 'include',
-        headers,
-      });
+      const res = await apiFetch('/api/session');
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) return;
 
@@ -57,9 +51,7 @@ export default function App() {
 
   const fetchPublicInfo = async () => {
     try {
-      const res = await fetch('/api/public-info', {
-        headers: { 'Accept': 'application/json' },
-      });
+      const res = await apiFetch('/api/public-info');
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) return;
 
@@ -77,21 +69,13 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      const token = sessionStorage.getItem('results_portal_token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      await fetch('/api/logout', {
+      await apiFetch('/api/logout', {
         method: 'POST',
-        credentials: 'include',
-        headers,
       });
     } catch (err) {
       console.error('Logout error:', err);
     }
-    try {
-      sessionStorage.removeItem('results_portal_token');
-    } catch {}
+    clearStoredSessionToken();
     setSession({ authenticated: false });
     setActiveTab('student');
     fetchPublicInfo();
@@ -122,11 +106,15 @@ export default function App() {
     }
 
     try {
-      await fetch('/api/session/switch-role', {
+      const res = await apiFetch('/api/session/switch-role', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: targetRole }),
       });
+      const data = await res.json();
+      if (data?.token) {
+        setStoredSessionToken(data.token);
+      }
     } catch {
       // optimistic state is active
     }

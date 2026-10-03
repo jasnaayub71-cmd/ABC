@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Printer, ShieldCheck, AlertCircle, Award, CheckCircle, Clock, RefreshCw, BookOpen, Layers } from 'lucide-react';
 import universityCrest from '../assets/images/university_crest_1790954948850.jpg';
 import { StudentResultData } from '../types/index.ts';
+import { apiFetch } from '../utils/api.ts';
 
 interface StudentResultViewProps {
   onLogout: () => void;
@@ -29,7 +30,7 @@ export const StudentResultView: React.FC<StudentResultViewProps> = ({ onLogout, 
       }
 
       // 2. Exact match with backend API route: /api/student
-      const res = await fetch('/api/student', {
+      const res = await apiFetch('/api/student', {
         method: 'GET',
         headers,
       });

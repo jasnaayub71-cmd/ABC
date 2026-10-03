@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, Info, ArrowRight, ShieldCheck, User, Lock } from 'lucide-react';
+import { apiFetch, setStoredSessionToken } from '../utils/api.ts';
 
 interface StudentLoginProps {
   onLoginSuccess: (studentData: any, isPublished: boolean) => void;
@@ -23,13 +24,12 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onLoginSuccess, isPu
     setLoading(true);
 
     try {
-      const response = await fetch('/api/login/student', {
+      const response = await apiFetch('/api/login/student', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           username: identifier.trim(),
           password: password || undefined,
@@ -50,11 +50,7 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onLoginSuccess, isPu
       }
 
       if (data?.token) {
-        try {
-          sessionStorage.setItem('results_portal_token', data.token);
-        } catch {
-          // ignore storage error
-        }
+        setStoredSessionToken(data.token);
       }
 
       onLoginSuccess(data.student, data.isPublished);

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../utils/api.ts';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     setLoading(true);
 
     try {
-      const res = await fetch('/api/examiner/change-password', {
+      const res = await apiFetch('/api/examiner/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
@@ -47,7 +48,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to change password');
+        throw new Error(data?.error || 'Failed to change password');
       }
 
       setSuccess('Examiner password updated successfully and hashed using scrypt.');
