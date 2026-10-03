@@ -1,0 +1,515 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Globe,
+  Lock,
+  Trash2,
+  UserPlus,
+  Key,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  FileSpreadsheet,
+  RotateCcw,
+  Sparkles,
+  BookOpen,
+  Edit,
+  GraduationCap,
+  ShieldCheck,
+  RefreshCw,
+  LogOut,
+  Sliders,
+} from 'lucide-react';
+import { StudentRecord } from '../types/index.ts';
+import { AddStudentModal } from './AddStudentModal.tsx';
+import { EditStudentModal } from './EditStudentModal.tsx';
+import { MarksManagerModal } from './MarksManagerModal.tsx';
+import { ChangePasswordModal } from './ChangePasswordModal.tsx';
+
+interface ExaminerDashboardProps {
+  onLogout: () => void;
+  onOpenRules: () => void;
+}
+
+export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, onOpenRules }) => {
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Search & filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isPublished, setIsPublished] = useState(true);
+  const [instituteName, setInstituteName] = useState('ABC International University Delhi');
+  const [isEditingInstitute, setIsEditingInstitute] = useState(false);
+  const [instInput, setInstInput] = useState('');
+
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [selectedStudentForMarks, setSelectedStudentForMarks] = useState<any>(null);
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<any>(null);
+
+  const [isTogglingPublish, setIsTogglingPublish] = useState(false);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
+
+  const fetchStudents = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qParam = searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
+      const res = await fetch(`/api/examiner/students${qParam}`);
+      if (!res.ok) {
+        throw new Error('Failed to load students');
+      }
+      const data = await res.json();
+      setStudents(data.students || []);
+      setIsPublished(data.isPublished ?? true);
+      if (data.instituteName) {
+        setInstituteName(data.instituteName);
+        setInstInput(data.instituteName);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error loading records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, [searchQuery]);
+
+  const handleTogglePublish = async () => {
+    setIsTogglingPublish(true);
+    try {
+      const nextState = !isPublished;
+      const res = await fetch('/api/examiner/toggle-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublished: nextState }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to toggle publication');
+      }
+
+      setIsPublished(data.isPublished);
+      showNotification(
+        'success',
+        data.isPublished
+          ? 'Results are now PUBLISHED. Students can log in and view their official marks!'
+          : 'Results are now in DRAFT / UNPUBLISHED mode. Students will see the holding notice.'
+      );
+    } catch (err: any) {
+      showNotification('error', err.message || 'Error updating status');
+    } finally {
+      setIsTogglingPublish(false);
+    }
+  };
+
+  const handleDeleteStudent = async (studentId: number, studentName: string) => {
+    if (!window.confirm(`Delete student "${studentName}" and all associated marks? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/examiner/student/${studentId}/delete`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete student');
+      }
+
+      showNotification('success', `Student "${studentName}" deleted successfully.`);
+      fetchStudents();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Error deleting student');
+    }
+  };
+
+  const handleFillDemoMarks = async () => {
+    try {
+      const res = await fetch('/api/examiner/demo-fill-marks', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate demo marks');
+
+      showNotification('success', 'Filled realistic marks for all candidates and published results.');
+      fetchStudents();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Action failed');
+    }
+  };
+
+  const handleResetBlankMarks = async () => {
+    if (!window.confirm('Reset ALL marks to blank? Existing marks for all students will be cleared.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/examiner/reset-blank-marks', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reset marks');
+
+      showNotification('success', 'All marks reset to blank as per initial state.');
+      fetchStudents();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Action failed');
+    }
+  };
+
+  const handleSaveInstituteName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!instInput.trim()) return;
+
+    try {
+      const res = await fetch('/api/examiner/institute-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instituteName: instInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update institute name');
+
+      setInstituteName(data.instituteName);
+      setIsEditingInstitute(false);
+      showNotification('success', 'Institute name updated.');
+    } catch (err: any) {
+      showNotification('error', err.message || 'Error updating institute');
+    }
+  };
+
+  // Stats computation
+  const totalStudents = students.length;
+  const totalEntries = students.reduce((sum, s) => sum + (s.n || 0), 0);
+  const studentsWithMarks = students.filter(s => (s.n || 0) > 0).length;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Toast Notification */}
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 border animate-in slide-in-from-top-2 duration-200 ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+              : 'bg-rose-50 text-rose-900 border-rose-300'
+          }`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span>{notification.message}</span>
+        </div>
+      )}
+
+      {/* Top Banner & Control Deck */}
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                Official Faculty Gradebook
+              </span>
+              <span className="text-xs text-slate-400">·</span>
+              <span className="text-xs text-slate-500 font-mono">Controller of Examinations</span>
+            </div>
+
+            {isEditingInstitute ? (
+              <form onSubmit={handleSaveInstituteName} className="flex items-center gap-2 mt-1">
+                <input
+                  type="text"
+                  value={instInput}
+                  onChange={(e) => setInstInput(e.target.value)}
+                  className="text-lg font-bold text-[#0f2042] border border-slate-300 rounded px-2 py-1 font-institutional"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  className="px-2 py-1 text-xs bg-[#0f2042] text-amber-300 font-semibold rounded cursor-pointer"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingInstitute(false)}
+                  className="px-2 py-1 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 mt-1 group">
+                <h1 className="font-institutional text-2xl font-bold text-[#0f2042]">
+                  {instituteName}
+                </h1>
+                <button
+                  onClick={() => {
+                    setInstInput(instituteName);
+                    setIsEditingInstitute(true);
+                  }}
+                  title="Edit institute name"
+                  className="text-slate-400 hover:text-[#0f2042] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              Manage candidates, enroll new students, enter subject marks, and publish official marksheets.
+            </p>
+          </div>
+
+          {/* Quick Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-3.5 py-2 text-xs font-semibold bg-[#0f2042] text-amber-300 hover:bg-[#162f61] rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Add Student</span>
+            </button>
+
+            <button
+              onClick={handleTogglePublish}
+              disabled={isTogglingPublish}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                isPublished
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-amber-600 text-white hover:bg-amber-700'
+              }`}
+            >
+              <Globe className="w-4 h-4" />
+              <span>{isPublished ? 'Published (Live)' : 'Draft (Unpublished)'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5 text-slate-500" />
+              <span>Security</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Metric Cards Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <span className="text-slate-500 block text-[11px]">Enrolled Students</span>
+            <span className="text-lg font-bold font-mono text-[#0f2042]">{totalStudents}</span>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <span className="text-slate-500 block text-[11px]">Total Mark Entries</span>
+            <span className="text-lg font-bold font-mono text-emerald-700">{totalEntries}</span>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <span className="text-slate-500 block text-[11px]">Evaluated Students</span>
+            <span className="text-lg font-bold font-mono text-blue-700">
+              {studentsWithMarks} / {totalStudents}
+            </span>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <span className="text-slate-500 block text-[11px]">Result Portal Status</span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`w-2 h-2 rounded-full ${isPublished ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              <span className="font-semibold text-slate-800">
+                {isPublished ? 'Live for Students' : 'Draft / Held'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Student Directory Table Container */}
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 overflow-hidden space-y-0">
+        {/* Search & Bulk Utilities Bar */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Search form matching Python request.args.get("q") */}
+          <div className="relative flex-1 max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              name="q"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, roll no, or username..."
+              className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#0f2042] transition-all"
+            />
+          </div>
+
+          {/* Quick Demo Batch Controls */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleFillDemoMarks}
+              title="Populates realistic marks across exams for all students"
+              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-[#0f2042] bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Fill Sample Marks</span>
+            </button>
+
+            <button
+              onClick={handleResetBlankMarks}
+              title="Reset all student marks to blank"
+              className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 bg-white border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+              <span>Reset Blank</span>
+            </button>
+
+            <button
+              onClick={fetchStudents}
+              title="Refresh student list"
+              className="p-1.5 text-slate-500 hover:text-slate-800 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Student Table matching Python HTML structure */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100/90 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4">Roll no</th>
+                <th className="py-3 px-4">Name</th>
+                <th className="py-3 px-4">Course</th>
+                <th className="py-3 px-4">Username</th>
+                <th className="py-3 px-4 text-center">Entries</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <div className="w-6 h-6 border-2 border-[#0f2042] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    Loading student records...
+                  </td>
+                </tr>
+              ) : students.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    {searchQuery ? `No candidates found matching "${searchQuery}".` : 'No students yet. Click "+ Add student" to enroll.'}
+                  </td>
+                </tr>
+              ) : (
+                students.map((s) => (
+                  <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                      {s.rollNo}
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-slate-900">
+                      {s.name}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {s.course || '—'}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-600">
+                      {s.username || '—'}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="inline-block bg-blue-50 text-blue-700 font-mono font-bold px-2 py-0.5 rounded-full border border-blue-200 text-[11px]">
+                        {s.n || 0}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentForMarks(s)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-[#0f2042] text-amber-300 hover:bg-[#162f61] rounded-md transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Marks</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentForEdit(s)}
+                          className="px-2.5 py-1 text-xs font-semibold text-[#0f2042] bg-white border border-[#0f2042] hover:bg-slate-50 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStudent(s.id, s.name)}
+                          className="px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 bg-rose-50 border border-rose-200 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer info strip */}
+        <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
+          <span>
+            Showing <strong>{students.length}</strong> candidate{students.length === 1 ? '' : 's'} registered in {instituteName}.
+          </span>
+          <span className="font-mono">
+            All modifications are persistently backed up in the results database.
+          </span>
+        </div>
+      </div>
+
+      {/* Modals */}
+      <AddStudentModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onStudentAdded={() => {
+          showNotification('success', 'Candidate successfully registered.');
+          fetchStudents();
+        }}
+      />
+
+      <EditStudentModal
+        isOpen={!!selectedStudentForEdit}
+        student={selectedStudentForEdit}
+        onClose={() => setSelectedStudentForEdit(null)}
+        onStudentUpdated={() => {
+          showNotification('success', 'Student information updated.');
+          setSelectedStudentForEdit(null);
+          fetchStudents();
+        }}
+      />
+
+      <MarksManagerModal
+        isOpen={!!selectedStudentForMarks}
+        student={selectedStudentForMarks}
+        onClose={() => setSelectedStudentForMarks(null)}
+        onMarksUpdated={() => {
+          fetchStudents();
+        }}
+      />
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
+    </div>
+  );
+};

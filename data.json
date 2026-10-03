@@ -1,0 +1,179 @@
+{
+  "instituteName": "ABC International University Delhi",
+  "isPublished": true,
+  "users": [
+    {
+      "id": 1,
+      "username": "examiner",
+      "passwordHash": "0123456789abcdef0123456789abcdef:83d20b79c8fa2c5da1d90a76a58e90845aa6dde75417af8c460aa81c92fe2b8213bf8f93724fbefb3fc4228d3be7d32d7be9ab40c60cf5d814287e7c4d97b1a5",
+      "role": "examiner"
+    },
+    {
+      "id": 2,
+      "username": "Abhinav",
+      "passwordHash": "0123456789abcdef0123456789abcdef:5d0d9045efbfb1efa655610820531e1bfd755bf5b75aa28db47e50ebee885fdf2e7a81369f40fc70fb0c4d743099785b86f9079048d5c7ec457ca392a6695af1",
+      "role": "examiner"
+    },
+    {
+      "id": 3,
+      "username": "anu",
+      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "role": "student"
+    },
+    {
+      "id": 4,
+      "username": "rahul",
+      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "role": "student"
+    },
+    {
+      "id": 5,
+      "username": "priya",
+      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "role": "student"
+    },
+    {
+      "id": 6,
+      "username": "arjun",
+      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "role": "student"
+    },
+    {
+      "id": 7,
+      "username": "PQASAEGR05",
+      "passwordHash": "4361ae66d51ac51a97bd11c6501171bf:46b31a3559631da9a23183fc1981c179f7f9bdc2b37d86c77edd6f97acceb51e58fe131d00c3977a37959c4008d71e41eabdf62730dea2a7684532da4f0ac19c",
+      "role": "student"
+    }
+  ],
+  "students": [
+    {
+      "id": 1,
+      "userId": 3,
+      "rollNo": "PQASAEGR01",
+      "name": "Anu",
+      "course": "B.Tech Computer Science & Engineering"
+    },
+    {
+      "id": 2,
+      "userId": 4,
+      "rollNo": "PQASAEGR02",
+      "name": "Rahul Sharma",
+      "course": "B.Tech Computer Science & Engineering"
+    },
+    {
+      "id": 3,
+      "userId": 5,
+      "rollNo": "PQASAEGR03",
+      "name": "Priya Patel",
+      "course": "B.Tech Computer Science & Engineering"
+    },
+    {
+      "id": 4,
+      "userId": 6,
+      "rollNo": "PQASAEGR04",
+      "name": "Arjun Verma",
+      "course": "B.Tech Computer Science & Engineering"
+    },
+    {
+      "id": 5,
+      "userId": 7,
+      "rollNo": "PQASAEGR05",
+      "name": "Rua",
+      "course": "B.Tech Computer Science & Engineering"
+    }
+  ],
+  "marks": [
+    {
+      "id": 1,
+      "studentId": 1,
+      "exam": "Term 1",
+      "subject": "Data Structures & Algorithms",
+      "marks": 92,
+      "maxMarks": 100
+    },
+    {
+      "id": 2,
+      "studentId": 1,
+      "exam": "Term 1",
+      "subject": "Computer Architecture",
+      "marks": 86,
+      "maxMarks": 100
+    },
+    {
+      "id": 3,
+      "studentId": 1,
+      "exam": "Term 1",
+      "subject": "Discrete Mathematics",
+      "marks": 90,
+      "maxMarks": 100
+    },
+    {
+      "id": 4,
+      "studentId": 1,
+      "exam": "Term 2",
+      "subject": "Data Structures & Algorithms",
+      "marks": 95,
+      "maxMarks": 100
+    },
+    {
+      "id": 5,
+      "studentId": 1,
+      "exam": "Term 2",
+      "subject": "Database Management Systems",
+      "marks": 89,
+      "maxMarks": 100
+    },
+    {
+      "id": 6,
+      "studentId": 2,
+      "exam": "Term 1",
+      "subject": "Data Structures & Algorithms",
+      "marks": 75,
+      "maxMarks": 100
+    },
+    {
+      "id": 7,
+      "studentId": 2,
+      "exam": "Term 1",
+      "subject": "Computer Architecture",
+      "marks": 68,
+      "maxMarks": 100
+    },
+    {
+      "id": 8,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Data Structures & Algorithms",
+      "marks": 98,
+      "maxMarks": 100
+    },
+    {
+      "id": 9,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Computer Architecture",
+      "marks": 96,
+      "maxMarks": 100
+    },
+    {
+      "id": 10,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 45,
+      "maxMarks": 100
+    },
+    {
+      "id": 11,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 29,
+      "maxMarks": 100
+    }
+  ],
+  "nextUserId": 8,
+  "nextStudentId": 6,
+  "nextMarkId": 12,
+  "lastUpdated": "2026-10-02T17:04:42.181Z"
+}

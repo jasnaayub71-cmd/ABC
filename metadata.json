@@ -1,0 +1,6 @@
+{
+  "name": "ABC International University Delhi - Results Portal",
+  "description": "Official examination results portal for ABC International University Delhi. Secure gradebook management for examiners and marksheet access for students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
