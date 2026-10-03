@@ -21,6 +21,30 @@ export interface MarkRecord {
   subject: string;
   marks: number;
   maxMarks: number;
+  code?: string;
+  grade?: string;
+  result?: string;
+  semester?: string;
+  source?: 'manual' | 'excel';
+}
+
+export interface ExcelSummary {
+  totalRows: number;
+  totalStudents: number;
+  totalSubjects: number;
+  invalidRows: number;
+  duplicateRecords: number;
+}
+
+export interface ExcelConnectionStatus {
+  connected: boolean;
+  filename?: string;
+  fileSize?: number;
+  uploadedAt?: string;
+  uploadedBy?: string;
+  summary?: ExcelSummary;
+  columns?: string[];
+  previewRows?: Array<Record<string, any>>;
 }
 
 export interface ExamSummaryItem {

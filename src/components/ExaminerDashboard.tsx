@@ -24,6 +24,7 @@ import { AddStudentModal } from './AddStudentModal.tsx';
 import { EditStudentModal } from './EditStudentModal.tsx';
 import { MarksManagerModal } from './MarksManagerModal.tsx';
 import { ChangePasswordModal } from './ChangePasswordModal.tsx';
+import { ExcelMarksImport } from './ExcelMarksImport.tsx';
 
 interface ExaminerDashboardProps {
   onLogout: () => void;
@@ -331,6 +332,13 @@ export const ExaminerDashboard: React.FC<ExaminerDashboardProps> = ({ onLogout, 
           </div>
         </div>
       </div>
+
+      {/* Professional Excel Marks Import Section */}
+      <ExcelMarksImport
+        students={students}
+        onImportSuccess={fetchStudents}
+        showNotification={showNotification}
+      />
 
       {/* Main Student Directory Table Container */}
       <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 overflow-hidden space-y-0">

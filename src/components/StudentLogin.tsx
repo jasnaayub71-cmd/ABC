@@ -25,17 +25,36 @@ export const StudentLogin: React.FC<StudentLoginProps> = ({ onLoginSuccess, isPu
     try {
       const response = await fetch('/api/login/student', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
         body: JSON.stringify({
           username: identifier.trim(),
           password: password || undefined,
         }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server returned unexpected ${response.status} response: ${text.slice(0, 100)}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to authenticate');
+        throw new Error(data?.error || 'Failed to authenticate');
+      }
+
+      if (data?.token) {
+        try {
+          sessionStorage.setItem('results_portal_token', data.token);
+        } catch {
+          // ignore storage error
+        }
       }
 
       onLoginSuccess(data.student, data.isPublished);

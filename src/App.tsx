@@ -35,19 +35,34 @@ export default function App() {
   // Sync session with backend in background
   const syncSession = async () => {
     try {
-      const res = await fetch('/api/session');
+      const token = sessionStorage.getItem('results_portal_token');
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/session', {
+        credentials: 'include',
+        headers,
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return;
+
       const data = await res.json();
-      if (data.authenticated) {
+      if (data && data.authenticated) {
         setSession(data);
       }
     } catch {
-      // Keep optimistic logged-in session
+      // Keep optimistic or current session
     }
   };
 
   const fetchPublicInfo = async () => {
     try {
-      const res = await fetch('/api/public-info');
+      const res = await fetch('/api/public-info', {
+        headers: { 'Accept': 'application/json' },
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return;
+
       const data = await res.json();
       setPublicInfo(data);
     } catch (err) {
@@ -62,10 +77,21 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/logout', { method: 'POST' });
+      const token = sessionStorage.getItem('results_portal_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+      });
     } catch (err) {
       console.error('Logout error:', err);
     }
+    try {
+      sessionStorage.removeItem('results_portal_token');
+    } catch {}
     setSession({ authenticated: false });
     setActiveTab('student');
     fetchPublicInfo();
