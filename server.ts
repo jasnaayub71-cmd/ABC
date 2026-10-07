@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,14 +63,23 @@ interface DbUser {
   username: string;
   passwordHash: string;
   role: 'examiner' | 'student';
+  name?: string;
+  status?: 'active' | 'disabled';
+  createdAt?: string;
+  mustChangePassword?: boolean;
+  isAdmin?: boolean;
+  submissionStatus?: 'draft' | 'submitted';
+  submittedAt?: string;
 }
 
 interface DbStudent {
   id: number;
+  examinerId: number; // Owner examiner user ID
   userId: number;
   rollNo: string;
   name: string;
   course: string;
+  semester?: string;
 }
 
 interface DbMark {
@@ -93,6 +103,23 @@ interface AppDatabase {
   lastUpdated: string;
 }
 
+function sanitizeDb(parsed: AppDatabase): AppDatabase {
+  // Purge any Abhinav examiner accounts, assigned students, or marks
+  const abhinavUsers = parsed.users.filter(
+    u => u.username?.toLowerCase() === 'abhinav' || u.name?.toLowerCase() === 'abhinav'
+  );
+  if (abhinavUsers.length > 0) {
+    const abhinavIds = new Set(abhinavUsers.map(u => u.id));
+    parsed.users = parsed.users.filter(u => !abhinavIds.has(u.id));
+    const abhinavStudentIds = new Set(
+      parsed.students.filter(s => abhinavIds.has(s.examinerId)).map(s => s.id)
+    );
+    parsed.students = parsed.students.filter(s => !abhinavIds.has(s.examinerId));
+    parsed.marks = parsed.marks.filter(m => !abhinavStudentIds.has(m.studentId));
+  }
+  return parsed;
+}
+
 function initDatabase(): AppDatabase {
   const filePath = getDataFilePath();
   if (fs.existsSync(filePath)) {
@@ -100,7 +127,7 @@ function initDatabase(): AppDatabase {
       const raw = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.users) && Array.isArray(parsed.students) && Array.isArray(parsed.marks)) {
-        return parsed;
+        return sanitizeDb(parsed);
       }
     } catch (err) {
       console.error('Error reading data.json, checking root fallback...', err);
@@ -114,14 +141,14 @@ function initDatabase(): AppDatabase {
       const raw = fs.readFileSync(rootPath, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.users) && Array.isArray(parsed.students) && Array.isArray(parsed.marks)) {
-        return parsed;
+        return sanitizeDb(parsed);
       }
     } catch (err) {
       console.error('Error reading root data.json:', err);
     }
   }
 
-  // Initial Seed
+  // Initial Seed - Strictly only Controller of Examinations, Rahul, and Anu
   let uId = 1;
   let sId = 1;
   let mId = 1;
@@ -130,83 +157,40 @@ function initDatabase(): AppDatabase {
     {
       id: uId++,
       username: 'examiner',
+      name: 'Controller of Examinations',
       passwordHash: '0123456789abcdef0123456789abcdef:83d20b79c8fa2c5da1d90a76a58e90845aa6dde75417af8c460aa81c92fe2b8213bf8f93724fbefb3fc4228d3be7d32d7be9ab40c60cf5d814287e7c4d97b1a5',
       role: 'examiner',
-    },
-    {
-      id: uId++,
-      username: 'Abhinav',
-      passwordHash: '0123456789abcdef0123456789abcdef:5d0d9045efbfb1efa655610820531e1bfd755bf5b75aa28db47e50ebee885fdf2e7a81369f40fc70fb0c4d743099785b86f9079048d5c7ec457ca392a6695af1',
-      role: 'examiner',
-    },
-    {
-      id: uId++,
-      username: 'anu',
-      passwordHash: '0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf',
-      role: 'student',
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      mustChangePassword: false,
+      isAdmin: true,
     },
     {
       id: uId++,
       username: 'rahul',
-      passwordHash: '0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf',
-      role: 'student',
+      name: 'Rahul',
+      passwordHash: hashPassword('rahul654'),
+      role: 'examiner',
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      mustChangePassword: true,
+      isAdmin: false,
     },
     {
       id: uId++,
-      username: 'priya',
-      passwordHash: '0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf',
-      role: 'student',
-    },
-    {
-      id: uId++,
-      username: 'arjun',
-      passwordHash: '0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf',
-      role: 'student',
-    },
-  ];
-
-  const students: DbStudent[] = [
-    {
-      id: sId++,
-      userId: 3,
-      rollNo: 'PQASAEGR01',
+      username: 'anu',
       name: 'Anu',
-      course: 'B.Tech Computer Science & Engineering',
-    },
-    {
-      id: sId++,
-      userId: 4,
-      rollNo: 'PQASAEGR02',
-      name: 'Rahul Sharma',
-      course: 'B.Tech Computer Science & Engineering',
-    },
-    {
-      id: sId++,
-      userId: 5,
-      rollNo: 'PQASAEGR03',
-      name: 'Priya Patel',
-      course: 'B.Tech Computer Science & Engineering',
-    },
-    {
-      id: sId++,
-      userId: 6,
-      rollNo: 'PQASAEGR04',
-      name: 'Arjun Verma',
-      course: 'B.Tech Computer Science & Engineering',
+      passwordHash: hashPassword('anu654'),
+      role: 'examiner',
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      mustChangePassword: true,
+      isAdmin: false,
     },
   ];
 
-  const marks: DbMark[] = [
-    { id: mId++, studentId: 1, exam: 'Term 1', subject: 'Data Structures & Algorithms', marks: 92, maxMarks: 100 },
-    { id: mId++, studentId: 1, exam: 'Term 1', subject: 'Computer Architecture', marks: 86, maxMarks: 100 },
-    { id: mId++, studentId: 1, exam: 'Term 1', subject: 'Discrete Mathematics', marks: 90, maxMarks: 100 },
-    { id: mId++, studentId: 1, exam: 'Term 2', subject: 'Data Structures & Algorithms', marks: 95, maxMarks: 100 },
-    { id: mId++, studentId: 1, exam: 'Term 2', subject: 'Database Management Systems', marks: 89, maxMarks: 100 },
-    { id: mId++, studentId: 2, exam: 'Term 1', subject: 'Data Structures & Algorithms', marks: 75, maxMarks: 100 },
-    { id: mId++, studentId: 2, exam: 'Term 1', subject: 'Computer Architecture', marks: 68, maxMarks: 100 },
-    { id: mId++, studentId: 3, exam: 'Term 1', subject: 'Data Structures & Algorithms', marks: 98, maxMarks: 100 },
-    { id: mId++, studentId: 3, exam: 'Term 1', subject: 'Computer Architecture', marks: 96, maxMarks: 100 },
-  ];
+  const students: DbStudent[] = [];
+  const marks: DbMark[] = [];
 
   const dbData: AppDatabase = {
     instituteName: INSTITUTE_NAME,
@@ -250,6 +234,9 @@ interface SessionData {
   userId: number;
   role: 'examiner' | 'student';
   username: string;
+  examinerName?: string;
+  isAdmin?: boolean;
+  mustChangePassword?: boolean;
   studentId?: number;
   studentName?: string;
   rollNo?: string;
@@ -405,6 +392,31 @@ function requireExaminer(req: Request, res: Response, next: NextFunction) {
     );
     return res.status(401).json({ error: 'Examiner authorization required. Please log in.' });
   }
+
+  const user = db.users.find(u => u.id === session.userId);
+  if (user && user.status === 'disabled') {
+    return res.status(403).json({ error: 'This examiner account has been disabled. Please contact the administrator.' });
+  }
+
+  (req as any).sessionData = session;
+  next();
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const session = getSession(req);
+  if (!session || session.role !== 'examiner') {
+    return res.status(401).json({ error: 'Examiner authorization required. Please log in.' });
+  }
+
+  const user = db.users.find(u => u.id === session.userId);
+  if (!user || (!user.isAdmin && user.id !== 1)) {
+    return res.status(403).json({ error: 'Administrator access required. Only the administrator can manage examiners.' });
+  }
+
+  if (user.status === 'disabled') {
+    return res.status(403).json({ error: 'This administrator account has been disabled.' });
+  }
+
   (req as any).sessionData = session;
   next();
 }
@@ -471,10 +483,15 @@ apiRouter.get('/session', (req: Request, res: Response) => {
   }
 
   if (session.role === 'examiner') {
+    const user = db.users.find(u => u.id === session.userId);
     return res.json({
       authenticated: true,
       role: 'examiner',
+      id: session.userId,
       username: session.username,
+      examinerName: user?.name || session.examinerName || session.username,
+      isAdmin: !!(user?.isAdmin ?? (session.isAdmin || session.userId === 1)),
+      mustChangePassword: !!(user?.mustChangePassword ?? session.mustChangePassword),
       instituteName: db.instituteName,
     });
   }
@@ -531,6 +548,7 @@ apiRouter.post('/session/switch-role', (req: Request, res: Response) => {
         },
       });
     }
+    return res.status(404).json({ error: 'No registered students found in the database.' });
   }
 
   const examiner = db.users.find(u => u.role === 'examiner');
@@ -631,10 +649,17 @@ apiRouter.post('/login/examiner', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid examiner username or password.' });
   }
 
+  if (user.status === 'disabled') {
+    return res.status(403).json({ error: 'This examiner account has been disabled. Please contact the administrator.' });
+  }
+
   const token = createSession({
     userId: user.id,
     role: 'examiner',
     username: user.username,
+    examinerName: user.name || user.username,
+    isAdmin: !!(user.isAdmin || user.id === 1),
+    mustChangePassword: !!user.mustChangePassword,
   });
 
   setSessionCookie(req, res, token);
@@ -643,7 +668,11 @@ apiRouter.post('/login/examiner', (req: Request, res: Response) => {
     success: true,
     token,
     role: 'examiner',
+    id: user.id,
     username: user.username,
+    examinerName: user.name || user.username,
+    isAdmin: !!(user.isAdmin || user.id === 1),
+    mustChangePassword: !!user.mustChangePassword,
   });
 });
 
@@ -720,20 +749,30 @@ apiRouter.post('/logout', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
-// 8. Examiner: Get Students List
+// 8. Examiner: Get Students List (Scoped to Authenticated Examiner)
 apiRouter.get('/examiner/students', requireExaminer, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const user = db.users.find(u => u.id === examinerId);
+  const isAdmin = !!(user?.isAdmin || session?.isAdmin || examinerId === 1);
   const q = (req.query.q || '').toString().trim().toLowerCase();
+  const filterExaminerId = req.query.examinerId ? parseInt(String(req.query.examinerId), 10) : null;
 
-  let studentRows = db.students.map(s => {
-    const user = db.users.find(u => u.id === s.userId);
+  // STRICT ISOLATION: Every examiner sees ONLY their own students on their dashboard!
+  const filteredStudents = db.students.filter(s => s.examinerId === examinerId);
+
+  let studentRows = filteredStudents.map(s => {
+    const studentUser = db.users.find(u => u.id === s.userId);
     const marksCount = db.marks.filter(m => m.studentId === s.id).length;
     return {
       id: s.id,
+      examinerId: s.examinerId,
       userId: s.userId,
       rollNo: s.rollNo,
       name: s.name,
       course: s.course,
-      username: user?.username || '',
+      semester: s.semester || '',
+      username: studentUser?.username || '',
       n: marksCount,
     };
   });
@@ -746,16 +785,138 @@ apiRouter.get('/examiner/students', requireExaminer, (req: Request, res: Respons
 
   studentRows.sort((a, b) => a.rollNo.localeCompare(b.rollNo));
 
+  // Compute exact active examiner counts (excluding Administrator)
+  const activeFacultyExaminers = db.users.filter(
+    u => u.role === 'examiner' && !u.isAdmin && u.id !== 1 && u.status !== 'disabled'
+  );
+  const totalExaminers = activeFacultyExaminers.length;
+  const submittedExaminers = activeFacultyExaminers.filter(u => u.submissionStatus === 'submitted').length;
+
   res.json({
     students: studentRows,
     q,
+    isAdmin,
     isPublished: db.isPublished,
     instituteName: db.instituteName,
+    totalExaminers,
+    submittedExaminers,
+    submissionStatus: user?.submissionStatus || 'draft',
+    submittedAt: user?.submittedAt,
   });
 });
 
-// 9. Examiner: Add New Student
-apiRouter.post('/examiner/student/new', requireExaminer, (req: Request, res: Response) => {
+// Helper middleware to prevent editing when gradebook is in 'submitted' status
+function requireDraftMode(req: Request, res: Response, next: NextFunction) {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const user = db.users.find(u => u.id === examinerId);
+  if (user && !user.isAdmin && examinerId !== 1 && user.submissionStatus === 'submitted') {
+    return res.status(403).json({
+      error: 'Your gradebook has been submitted to the Controller of Examinations and is currently locked. Click "Reopen for Editing" before making changes.',
+    });
+  }
+  next();
+}
+
+// Examiner: Submit Evaluation Marks to Controller of Examinations
+apiRouter.post('/examiner/submit', requireExaminer, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const user = db.users.find(u => u.id === examinerId);
+  if (!user) {
+    return res.status(404).json({ error: 'Examiner account not found.' });
+  }
+
+  if (user.isAdmin || examinerId === 1) {
+    return res.status(400).json({ error: 'Administrator accounts do not submit evaluation marks.' });
+  }
+
+  // 1. Validate examiner has candidates assigned
+  const myStudents = db.students.filter(s => s.examinerId === examinerId);
+  if (myStudents.length === 0) {
+    return res.status(400).json({
+      error: 'Cannot submit an empty gradebook. Please enroll candidates and enter marks before submission.',
+    });
+  }
+
+  // 2. Validate all students have evaluation marks entered
+  const myStudentIds = new Set(myStudents.map(s => s.id));
+  const unevaluated = myStudents.filter(s => !db.marks.some(m => m.studentId === s.id));
+  if (unevaluated.length > 0) {
+    const names = unevaluated.slice(0, 3).map(s => `"${s.name}" (${s.rollNo})`).join(', ');
+    const extra = unevaluated.length > 3 ? ` and ${unevaluated.length - 3} others` : '';
+    return res.status(400).json({
+      error: `Cannot submit gradebook: ${unevaluated.length} candidate(s) have no marks recorded (${names}${extra}). All candidates must be evaluated before submission.`,
+    });
+  }
+
+  // 3. Validate evaluated count matches total count
+  const evaluatedCount = myStudents.filter(s => db.marks.some(m => m.studentId === s.id)).length;
+  if (evaluatedCount < myStudents.length) {
+    return res.status(400).json({
+      error: `Cannot submit gradebook: Only ${evaluatedCount} of ${myStudents.length} candidates have marks recorded. Please complete all evaluations before submission.`,
+    });
+  }
+
+  // 4. Validate all marks are valid numerical entries
+  const myMarks = db.marks.filter(m => myStudentIds.has(m.studentId));
+  for (const m of myMarks) {
+    if (m.marks === null || m.marks === undefined || isNaN(m.marks) || m.marks < 0 || m.marks > m.maxMarks) {
+      const student = myStudents.find(s => s.id === m.studentId);
+      return res.status(400).json({
+        error: `Cannot submit gradebook: Invalid marks (${m.marks}/${m.maxMarks}) found for candidate "${student?.name || m.studentId}" in subject "${m.subject}".`,
+      });
+    }
+  }
+
+  user.submissionStatus = 'submitted';
+  user.submittedAt = new Date().toISOString();
+  saveDatabase();
+
+  return res.json({
+    success: true,
+    message: 'Evaluation marks successfully submitted to Controller of Examinations.',
+    submissionStatus: 'submitted',
+    submittedAt: user.submittedAt,
+  });
+});
+
+// Examiner: Reopen / Revise Marks Submission
+apiRouter.post('/examiner/unsubmit', requireExaminer, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const user = db.users.find(u => u.id === examinerId);
+  if (!user) {
+    return res.status(404).json({ error: 'Examiner account not found.' });
+  }
+
+  if (user.isAdmin || examinerId === 1) {
+    return res.status(400).json({ error: 'Administrator accounts do not submit evaluation marks.' });
+  }
+
+  user.submissionStatus = 'draft';
+  saveDatabase();
+
+  return res.json({
+    success: true,
+    message: 'Gradebook reopened for revisions.',
+    submissionStatus: 'draft',
+  });
+});
+
+// 9. Examiner: Add New Student (Automatically Assigns to Logged-in Examiner)
+apiRouter.post('/examiner/student/new', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const currentUser = db.users.find(u => u.id === examinerId);
+  const isAdmin = !!(currentUser?.isAdmin || session?.isAdmin || examinerId === 1);
+
+  if (isAdmin) {
+    return res.status(403).json({
+      error: 'Students cannot be added directly to the Administrator dashboard. Please use "Manage Examiners" to select and log in as an examiner (e.g. Rahul or Anu) to enroll students in their gradebook.',
+    });
+  }
+
   const rollNo = (req.body.roll_no || req.body.rollNo || '').toString().trim();
   const name = (req.body.name || '').toString().trim();
   const course = (req.body.course || '').toString().trim();
@@ -790,6 +951,7 @@ apiRouter.post('/examiner/student/new', requireExaminer, (req: Request, res: Res
   const newStudentId = db.nextStudentId++;
   const newStudent: DbStudent = {
     id: newStudentId,
+    examinerId,
     userId: newUserId,
     rollNo,
     name,
@@ -804,6 +966,7 @@ apiRouter.post('/examiner/student/new', requireExaminer, (req: Request, res: Res
     message: 'Student added successfully.',
     student: {
       id: newStudent.id,
+      examinerId: newStudent.examinerId,
       userId: newStudent.userId,
       rollNo: newStudent.rollNo,
       name: newStudent.name,
@@ -821,10 +984,18 @@ apiRouter.get('/examiner/student/:id', requireExaminer, (req: Request, res: Resp
   if (!student) {
     return res.status(404).json({ error: 'Student not found.' });
   }
+
+  const session = (req as any).sessionData || getSession(req);
+  const isAdmin = !!(session?.isAdmin || session?.userId === 1);
+  if (!isAdmin && student.examinerId !== session?.userId) {
+    return res.status(403).json({ error: 'Permission denied: This student belongs to another examiner.' });
+  }
+
   const user = db.users.find(u => u.id === student.userId);
   res.json({
     student: {
       id: student.id,
+      examinerId: student.examinerId,
       userId: student.userId,
       rollNo: student.rollNo,
       name: student.name,
@@ -835,11 +1006,17 @@ apiRouter.get('/examiner/student/:id', requireExaminer, (req: Request, res: Resp
 });
 
 // 11. Examiner: Edit Student
-apiRouter.post('/examiner/student/:id/edit', requireExaminer, (req: Request, res: Response) => {
+apiRouter.post('/examiner/student/:id/edit', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
   const sid = parseInt(req.params.id, 10);
   const student = db.students.find(s => s.id === sid);
   if (!student) {
     return res.status(404).json({ error: 'Student not found.' });
+  }
+
+  const session = (req as any).sessionData || getSession(req);
+  const isAdmin = !!(session?.isAdmin || session?.userId === 1);
+  if (!isAdmin && student.examinerId !== session?.userId) {
+    return res.status(403).json({ error: 'Permission denied: This student belongs to another examiner.' });
   }
 
   const user = db.users.find(u => u.id === student.userId);
@@ -888,6 +1065,7 @@ apiRouter.post('/examiner/student/:id/edit', requireExaminer, (req: Request, res
     message: 'Student updated successfully.',
     student: {
       id: student.id,
+      examinerId: student.examinerId,
       userId: student.userId,
       rollNo: student.rollNo,
       name: student.name,
@@ -905,6 +1083,12 @@ const handleDeleteStudent = (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Student not found.' });
   }
 
+  const session = (req as any).sessionData || getSession(req);
+  const isAdmin = !!(session?.isAdmin || session?.userId === 1);
+  if (!isAdmin && student.examinerId !== session?.userId) {
+    return res.status(403).json({ error: 'Permission denied: This student belongs to another examiner.' });
+  }
+
   const userId = student.userId;
   db.users = db.users.filter(u => u.id !== userId);
   db.students = db.students.filter(s => s.id !== sid);
@@ -914,8 +1098,8 @@ const handleDeleteStudent = (req: Request, res: Response) => {
   res.json({ success: true, message: 'Student and all marks deleted.' });
 };
 
-apiRouter.delete('/examiner/student/:id', requireExaminer, handleDeleteStudent);
-apiRouter.post('/examiner/student/:id/delete', requireExaminer, handleDeleteStudent);
+apiRouter.delete('/examiner/student/:id', requireExaminer, requireDraftMode, handleDeleteStudent);
+apiRouter.post('/examiner/student/:id/delete', requireExaminer, requireDraftMode, handleDeleteStudent);
 
 // 13. Examiner: Marks Management
 apiRouter.get('/examiner/student/:id/marks', requireExaminer, (req: Request, res: Response) => {
@@ -924,6 +1108,13 @@ apiRouter.get('/examiner/student/:id/marks', requireExaminer, (req: Request, res
   if (!student) {
     return res.status(404).json({ error: 'Student not found.' });
   }
+
+  const session = (req as any).sessionData || getSession(req);
+  const isAdmin = !!(session?.isAdmin || session?.userId === 1);
+  if (!isAdmin && student.examinerId !== session?.userId) {
+    return res.status(403).json({ error: 'Permission denied: This student belongs to another examiner.' });
+  }
+
   const user = db.users.find(u => u.id === student.userId);
 
   const studentMarks = db.marks
@@ -933,6 +1124,7 @@ apiRouter.get('/examiner/student/:id/marks', requireExaminer, (req: Request, res
   res.json({
     student: {
       id: student.id,
+      examinerId: student.examinerId,
       userId: student.userId,
       rollNo: student.rollNo,
       name: student.name,
@@ -943,11 +1135,17 @@ apiRouter.get('/examiner/student/:id/marks', requireExaminer, (req: Request, res
   });
 });
 
-apiRouter.post('/examiner/student/:id/marks', requireExaminer, (req: Request, res: Response) => {
+apiRouter.post('/examiner/student/:id/marks', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
   const sid = parseInt(req.params.id, 10);
   const student = db.students.find(s => s.id === sid);
   if (!student) {
     return res.status(404).json({ error: 'Student not found.' });
+  }
+
+  const session = (req as any).sessionData || getSession(req);
+  const isAdmin = !!(session?.isAdmin || session?.userId === 1);
+  if (!isAdmin && student.examinerId !== session?.userId) {
+    return res.status(403).json({ error: 'Permission denied: This student belongs to another examiner.' });
   }
 
   const { action } = req.body;
@@ -1059,8 +1257,13 @@ apiRouter.post('/examiner/institute-name', requireExaminer, (req: Request, res: 
   res.json({ success: true, instituteName: db.instituteName });
 });
 
-// 17. Examiner: Demo Fill Marks
-apiRouter.post('/examiner/demo-fill-marks', requireExaminer, (_req: Request, res: Response) => {
+// 17. Examiner: Demo Fill Marks (Scoped to Logged-in Examiner)
+apiRouter.post('/examiner/demo-fill-marks', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const myStudents = db.students.filter(s => s.examinerId === session.userId);
+  const myStudentIds = new Set(myStudents.map(s => s.id));
+  db.marks = db.marks.filter(m => !myStudentIds.has(m.studentId));
+
   const exams = ['Term 1', 'Term 2'];
   const subjects = [
     { name: 'Data Structures & Algorithms', max: 100 },
@@ -1069,15 +1272,10 @@ apiRouter.post('/examiner/demo-fill-marks', requireExaminer, (_req: Request, res
     { name: 'Database Management Systems', max: 100 },
   ];
 
-  db.marks = [];
-  for (const student of db.students) {
+  for (const student of myStudents) {
     for (const examName of exams) {
       for (const sub of subjects) {
         let base = 70 + ((student.id * 11 + sub.name.length * 5) % 28);
-        if (student.name === 'Anu') base = 90 + (sub.name.length % 8);
-        if (student.name === 'Priya Patel') base = 94 + (sub.name.length % 5);
-        if (student.name === 'Arjun Verma' && sub.name.includes('Discrete')) base = 35;
-
         db.marks.push({
           id: db.nextMarkId++,
           studentId: student.id,
@@ -1090,58 +1288,314 @@ apiRouter.post('/examiner/demo-fill-marks', requireExaminer, (_req: Request, res
     }
   }
 
-  db.isPublished = true;
   saveDatabase();
-  res.json({ success: true, message: 'Filled comprehensive sample marks for all students.' });
+  res.json({ success: true, message: `Filled sample marks for your ${myStudents.length} students.` });
 });
 
-// 18. Examiner: Reset Blank Marks
-apiRouter.post('/examiner/reset-blank-marks', requireExaminer, (_req: Request, res: Response) => {
-  db.marks = [];
+// 18. Examiner: Reset Blank Marks (Scoped to Logged-in Examiner)
+apiRouter.post('/examiner/reset-blank-marks', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const myStudentIds = new Set(db.students.filter(s => s.examinerId === session.userId).map(s => s.id));
+  db.marks = db.marks.filter(m => !myStudentIds.has(m.studentId));
   saveDatabase();
-  res.json({ success: true, message: 'All marks have been reset to blank.' });
+  res.json({ success: true, message: 'All marks for your students have been reset to blank.' });
 });
 
-// 19. Examiner: Excel Template Generation
-apiRouter.get('/examiner/excel-template', requireExaminer, (_req: Request, res: Response) => {
-  const rows: any[] = [];
-  const defaultExams = ['Term 1', 'Term 2'];
-  const defaultSubjects = [
-    { code: 'CS101', name: 'Data Structures & Algorithms', maxMarks: 100 },
-    { code: 'CS102', name: 'Computer Architecture', maxMarks: 100 },
-    { code: 'CS103', name: 'Discrete Mathematics', maxMarks: 100 },
-    { code: 'CS104', name: 'Database Management Systems', maxMarks: 100 },
+// 19. Examiner: Excel Template Generation (10 Columns: Roll No, Student Name, English, Maths, Hindi, Social, Science, Total Mark, Percentage, Grade)
+apiRouter.get('/examiner/excel-template', requireExaminer, (req: Request, res: Response) => {
+  const wantsJson =
+    req.query.format === 'json' ||
+    (req.headers.accept?.includes('application/json') && !req.query.download);
+
+  const columns = [
+    'Roll No',
+    'Student Name',
+    'English',
+    'Maths',
+    'Hindi',
+    'Social',
+    'Science',
+    'Total Mark',
+    'Percentage',
+    'Grade',
   ];
 
-  for (const student of db.students) {
-    const user = db.users.find(u => u.id === student.userId);
-    for (const exam of defaultExams) {
-      for (const sub of defaultSubjects) {
-        const existing = db.marks.find(m => m.studentId === student.id && m.exam === exam && m.subject === sub.name);
-        rows.push({
-          'Roll No': student.rollNo,
-          'Student Name': student.name,
-          'Username': user?.username || student.rollNo.toLowerCase(),
-          'Course': student.course,
-          'Semester': exam === 'Term 1' ? 'Semester 1' : 'Semester 2',
-          'Subject Code': sub.code,
-          'Subject Name': sub.name,
-          'Maximum Marks': sub.maxMarks,
-          'Marks Obtained': existing ? existing.marks : '',
-          'Exam Session': '2025-26',
-        });
+  if (wantsJson) {
+    return res.json({
+      success: true,
+      columns,
+      message: 'Blank student marks Excel template schema. 10 columns in exact order, no demo data.',
+    });
+  }
+
+  try {
+    const worksheetData: any[][] = [columns];
+    for (let i = 0; i < 25; i++) {
+      worksheetData.push(['', '', '', '', '', '', '', '', '', '']);
+    }
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Embed Excel formulas for rows 2 to 26 (1-based index)
+    // C: English, D: Maths, E: Hindi, F: Social, G: Science
+    // H: Total Mark, I: Percentage, J: Grade
+    for (let r = 2; r <= 26; r++) {
+      worksheet['H' + r] = {
+        t: 'n',
+        f: `IF(COUNT(C${r}:G${r})>0,SUM(C${r}:G${r}),"")`,
+      };
+      worksheet['I' + r] = {
+        t: 'n',
+        f: `IF(COUNT(C${r}:G${r})>0,ROUND(H${r}/5,2),"")`,
+      };
+      worksheet['J' + r] = {
+        t: 's',
+        f: `IF(COUNT(C${r}:G${r})<5,"",IF(OR(C${r}<40,D${r}<40,E${r}<40,F${r}<40,G${r}<40),"F",IF(I${r}>=90,"A+",IF(I${r}>=80,"A",IF(I${r}>=70,"B+",IF(I${r}>=60,"B",IF(I${r}>=50,"C","D"))))))`,
+      };
+    }
+
+    worksheet['!cols'] = [
+      { wch: 14 }, // Roll No
+      { wch: 28 }, // Student Name
+      { wch: 12 }, // English
+      { wch: 12 }, // Maths
+      { wch: 12 }, // Hindi
+      { wch: 12 }, // Social
+      { wch: 12 }, // Science
+      { wch: 14 }, // Total Mark
+      { wch: 14 }, // Percentage
+      { wch: 12 }, // Grade
+    ];
+    worksheet['!ref'] = 'A1:J26';
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Student Marks');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="ABC_University_Blank_Student_Marks_Template.xlsx"'
+    );
+    return res.send(buffer);
+  } catch (err: any) {
+    return res.status(500).json({ error: `Failed to generate Excel workbook: ${err.message}` });
+  }
+});
+
+// 20. Examiner: Student Marks Excel Import (Scoped to Logged-in Examiner)
+// Accepts 10-column Excel format (Roll No, Student Name, English, Maths, Hindi, Social, Science, Total Mark, Percentage, Grade)
+// Automatically registers new students under current examiner and records subject marks
+apiRouter.post('/examiner/import-student-marks', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const currentUser = db.users.find(u => u.id === examinerId);
+  const isAdmin = !!(currentUser?.isAdmin || session?.isAdmin || examinerId === 1);
+
+  if (isAdmin) {
+    return res.status(403).json({
+      error: 'Students and marks cannot be imported directly to the Administrator dashboard. Please use "Manage Examiners" to select and log in as an examiner (e.g. Rahul or Anu) to import to their gradebook.',
+    });
+  }
+
+  const items = req.body.students || req.body.rows || [];
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No student marks records provided for import.' });
+  }
+
+  const errors: string[] = [];
+  const seenRollsInPayload = new Map<string, number>();
+
+  // Helper to extract numerical marks for a subject
+  const parseSubjectMark = (r: any, fieldNames: string[]): number | null => {
+    for (const f of fieldNames) {
+      if (r[f] !== undefined && r[f] !== null && r[f] !== '') {
+        const val = Number(r[f]);
+        if (!isNaN(val)) return val;
       }
+    }
+    return null;
+  };
+
+  // PASS 1: Strict Validation - All-or-nothing (zero partial imports if any row fails)
+  for (let idx = 0; idx < items.length; idx++) {
+    const r = items[idx];
+    const rowNum = r.rowNumber || idx + 2;
+
+    const rollNo = (r.rollNo || r['Roll No'] || r.RollNo || r.roll_no || '').toString().trim();
+    const studentName = (r.studentName || r['Student Name'] || r.name || r['Full Name'] || '').toString().trim();
+
+    if (!rollNo) {
+      errors.push(`Row ${rowNum}: Missing Roll No`);
+      continue;
+    }
+    if (!studentName) {
+      errors.push(`Row ${rowNum}: Missing Student Name`);
+      continue;
+    }
+
+    const lowerRoll = rollNo.toLowerCase();
+    if (seenRollsInPayload.has(lowerRoll)) {
+      errors.push(`Row ${rowNum}: Duplicate Roll No "${rollNo}" in file (already present at row ${seenRollsInPayload.get(lowerRoll)})`);
+      continue;
+    }
+    seenRollsInPayload.set(lowerRoll, rowNum);
+
+    const english = parseSubjectMark(r, ['English', 'english', 'eng']);
+    const maths = parseSubjectMark(r, ['Maths', 'maths', 'math', 'Mathematics']);
+    const hindi = parseSubjectMark(r, ['Hindi', 'hindi', 'hin']);
+    const social = parseSubjectMark(r, ['Social', 'social', 'Social Studies', 'soc']);
+    const science = parseSubjectMark(r, ['Science', 'science', 'sci']);
+
+    const subjects = [
+      { name: 'English', val: english },
+      { name: 'Maths', val: maths },
+      { name: 'Hindi', val: hindi },
+      { name: 'Social', val: social },
+      { name: 'Science', val: science },
+    ];
+
+    for (const sub of subjects) {
+      if (sub.val === null) {
+        errors.push(`Row ${rowNum} (${rollNo}): Missing mark for ${sub.name}`);
+      } else if (sub.val < 0 || sub.val > 100) {
+        errors.push(`Row ${rowNum} (${rollNo}): Mark for ${sub.name} (${sub.val}) must be between 0 and 100`);
+      }
+    }
+
+    // Ownership check: If student exists in database, must belong to this examiner
+    const existingStudent = db.students.find(s => s.rollNo.toLowerCase() === lowerRoll);
+    if (existingStudent && existingStudent.examinerId !== examinerId) {
+      errors.push(`Row ${rowNum}: Student with Roll No "${rollNo}" belongs to another examiner. Access denied.`);
     }
   }
 
-  res.json({ success: true, rows });
+  // If ANY errors detected, reject entire file - no partial import
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: `Validation failed: ${errors.length} error(s) detected. No student records were imported.`,
+      errors,
+    });
+  }
+
+  // PASS 2: All rows valid - Commit changes atomically
+  let studentsCreated = 0;
+  let studentsUpdated = 0;
+  let marksUpdated = 0;
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const r = items[idx];
+    const rollNo = (r.rollNo || r['Roll No'] || r.RollNo || r.roll_no || '').toString().trim();
+    const studentName = (r.studentName || r['Student Name'] || r.name || r['Full Name'] || '').toString().trim();
+
+    const english = parseSubjectMark(r, ['English', 'english', 'eng'])!;
+    const maths = parseSubjectMark(r, ['Maths', 'maths', 'math', 'Mathematics'])!;
+    const hindi = parseSubjectMark(r, ['Hindi', 'hindi', 'hin'])!;
+    const social = parseSubjectMark(r, ['Social', 'social', 'Social Studies', 'soc'])!;
+    const science = parseSubjectMark(r, ['Science', 'science', 'sci'])!;
+
+    const subjectEntries = [
+      { name: 'English', val: english },
+      { name: 'Maths', val: maths },
+      { name: 'Hindi', val: hindi },
+      { name: 'Social', val: social },
+      { name: 'Science', val: science },
+    ];
+
+    let student = db.students.find(s => s.rollNo.toLowerCase() === rollNo.toLowerCase());
+    if (student) {
+      student.name = studentName;
+      studentsUpdated++;
+    } else {
+      const newUserId = db.nextUserId++;
+      const userUsername = rollNo.toLowerCase().replace(/[^a-z0-9]/g, '') || `stu_${rollNo}`;
+      const newUser: DbUser = {
+        id: newUserId,
+        username: userUsername,
+        passwordHash: hashPassword(rollNo),
+        role: 'student',
+      };
+      db.users.push(newUser);
+
+      const newStudentId = db.nextStudentId++;
+      student = {
+        id: newStudentId,
+        examinerId,
+        userId: newUserId,
+        rollNo,
+        name: studentName,
+        course: 'SSLC',
+      };
+      db.students.push(student);
+      studentsCreated++;
+    }
+
+    const examName = 'Term 1';
+    for (const sub of subjectEntries) {
+      const existing = db.marks.find(
+        m => m.studentId === student!.id && m.exam === examName && m.subject === sub.name
+      );
+      if (existing) {
+        existing.marks = Math.round(sub.val);
+        existing.maxMarks = 100;
+      } else {
+        db.marks.push({
+          id: db.nextMarkId++,
+          studentId: student!.id,
+          exam: examName,
+          subject: sub.name,
+          marks: Math.round(sub.val),
+          maxMarks: 100,
+        });
+      }
+      marksUpdated++;
+    }
+  }
+
+  saveDatabase();
+
+  return res.json({
+    success: true,
+    studentsCreated,
+    studentsUpdated,
+    marksUpdated,
+    totalProcessed: items.length,
+    message: `Import complete: ${studentsCreated} new student(s) enrolled, ${studentsUpdated} student(s) updated, ${marksUpdated} subject marks recorded.`,
+  });
 });
 
-// 20. Examiner: Excel Marks Import
-apiRouter.post('/examiner/import-marks', requireExaminer, (req: Request, res: Response) => {
+// Also support posting directly to /examiner/import-marks with either 10-column student rows or subject-level rows
+apiRouter.post('/examiner/import-marks', requireExaminer, requireDraftMode, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session.userId;
   const { rows, replaceExisting = true } = req.body;
   if (!Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'No marks data provided for import.' });
+  }
+
+  // Detect if rows contain the 10-column subject layout (English, Maths, Hindi, Social, Science)
+  const isSubjectColsLayout = rows.some(
+    r =>
+      r.english !== undefined ||
+      r.English !== undefined ||
+      r.Maths !== undefined ||
+      r.maths !== undefined ||
+      r.Science !== undefined ||
+      r.science !== undefined
+  );
+
+  if (isSubjectColsLayout) {
+    // Forward to 10-column handler logic
+    req.body.students = rows;
+    return (apiRouter as any).handle(
+      { ...req, url: '/examiner/import-student-marks', method: 'POST' },
+      res
+    );
   }
 
   const studentsUpdated = new Set<number>();
@@ -1165,6 +1619,12 @@ apiRouter.post('/examiner/import-marks', requireExaminer, (req: Request, res: Re
     const student = db.students.find(s => s.rollNo.toLowerCase() === rollNo.toLowerCase());
     if (!student) {
       errors.push(`Student with Roll No "${rollNo}" not found`);
+      skipped++;
+      continue;
+    }
+
+    if (student.examinerId !== examinerId) {
+      errors.push(`Student with Roll No "${rollNo}" belongs to another examiner`);
       skipped++;
       continue;
     }
@@ -1220,6 +1680,453 @@ apiRouter.post('/examiner/import-marks', requireExaminer, (req: Request, res: Re
     errors,
     totalRows: rows.length,
   });
+});
+
+// 21. Examiner: Download Student Excel Template Metadata/Headers
+apiRouter.get('/examiner/student-excel-template', requireExaminer, (_req: Request, res: Response) => {
+  const columns = [
+    'Roll No',
+    'Full Name',
+    'Course / Class',
+    'Semester',
+    'Username',
+    'Password',
+  ];
+  res.json({
+    success: true,
+    columns,
+    message: 'Blank student import template schema. Contains column headers with no demo students.',
+  });
+});
+
+// 22. Examiner: Import Students from Excel
+apiRouter.post('/examiner/import-students', requireExaminer, (req: Request, res: Response) => {
+  const session = (req as any).sessionData || getSession(req);
+  const examinerId = session?.userId;
+  const currentUser = db.users.find(u => u.id === examinerId);
+  const isAdmin = !!(currentUser?.isAdmin || session?.isAdmin || examinerId === 1);
+
+  if (isAdmin) {
+    return res.status(403).json({
+      error: 'Students cannot be imported directly to the Administrator dashboard. Please use "Manage Examiners" to select and log in as an examiner (e.g. Rahul or Anu) to import students to their gradebook.',
+    });
+  }
+
+  const { students } = req.body;
+  if (!Array.isArray(students) || students.length === 0) {
+    return res.status(400).json({ error: 'No student records provided for import.' });
+  }
+
+  const errors: string[] = [];
+  const seenRollNos = new Map<string, number>(); // lowercase rollNo -> rowNum
+  const seenUsernames = new Map<string, number>(); // lowercase username -> rowNum
+
+  const validatedRows: Array<{
+    rollNo: string;
+    name: string;
+    course: string;
+    semester: string;
+    username: string;
+    password: string;
+    rowNum: number;
+  }> = [];
+
+  students.forEach((item: any, index: number) => {
+    // 1-based row number accounting for Excel header at row 1
+    const rowNum = item.rowNumber || index + 2;
+
+    const rollNo = (item.rollNo || item['Roll No'] || item.roll_no || '').toString().trim();
+    const name = (item.name || item['Full Name'] || item.fullName || item.studentName || '').toString().trim();
+    const course = (item.course || item['Course / Class'] || item.courseClass || item.class || '').toString().trim();
+    const semester = (item.semester || item['Semester'] || item.sem || '').toString().trim();
+    const username = (item.username || item['Username'] || '').toString().trim();
+    const password = (item.password || item['Password'] || '').toString();
+
+    // Check required fields
+    if (!rollNo) {
+      errors.push(`Row ${rowNum}: Roll No is missing`);
+    }
+    if (!name) {
+      errors.push(`Row ${rowNum}: Full Name is missing`);
+    }
+    if (!course) {
+      errors.push(`Row ${rowNum}: Course / Class is missing`);
+    }
+    if (!semester) {
+      errors.push(`Row ${rowNum}: Semester is missing`);
+    }
+    if (!username) {
+      errors.push(`Row ${rowNum}: Username is missing`);
+    }
+    if (!password) {
+      errors.push(`Row ${rowNum}: Password is missing`);
+    } else if (password.length < 6) {
+      errors.push(`Row ${rowNum}: Password does not meet minimum requirements (min 6 characters)`);
+    }
+
+    // Check duplicate in current file
+    if (rollNo) {
+      const lowerRoll = rollNo.toLowerCase();
+      if (seenRollNos.has(lowerRoll)) {
+        errors.push(`Row ${rowNum}: Duplicate Roll No "${rollNo}" inside file (already on Row ${seenRollNos.get(lowerRoll)})`);
+      } else {
+        seenRollNos.set(lowerRoll, rowNum);
+      }
+      // Check collision with database
+      if (db.students.some(s => s.rollNo.toLowerCase() === lowerRoll)) {
+        errors.push(`Row ${rowNum}: Roll No "${rollNo}" already exists in the database`);
+      }
+    }
+
+    if (username) {
+      const lowerUser = username.toLowerCase();
+      if (seenUsernames.has(lowerUser)) {
+        errors.push(`Row ${rowNum}: Duplicate Username "${username}" inside file (already on Row ${seenUsernames.get(lowerUser)})`);
+      } else {
+        seenUsernames.set(lowerUser, rowNum);
+      }
+      // Check collision with database
+      if (db.users.some(u => u.username.toLowerCase() === lowerUser)) {
+        errors.push(`Row ${rowNum}: Username "${username}" already exists in the database`);
+      }
+    }
+
+    validatedRows.push({
+      rollNo,
+      name,
+      course,
+      semester,
+      username,
+      password,
+      rowNum,
+    });
+  });
+
+  // If ANY row failed validation, DO NOT partially import the file
+  if (errors.length > 0) {
+    return res.status(400).json({
+      error: 'Validation failed. Please correct the Excel file and upload again.',
+      errors,
+      totalRows: students.length,
+      invalidCount: errors.length,
+    });
+  }
+
+  // Atomically create students in existing database (Assigned to currently logged-in examiner)
+  const createdStudents: any[] = [];
+
+  for (const s of validatedRows) {
+    const newUserId = db.nextUserId++;
+    const newUser: DbUser = {
+      id: newUserId,
+      username: s.username,
+      passwordHash: hashPassword(s.password),
+      role: 'student',
+    };
+    db.users.push(newUser);
+
+    const newStudentId = db.nextStudentId++;
+    const courseWithSem = s.semester ? `${s.course} (Sem ${s.semester})` : s.course;
+    const newStudent: DbStudent = {
+      id: newStudentId,
+      examinerId,
+      userId: newUserId,
+      rollNo: s.rollNo,
+      name: s.name,
+      course: courseWithSem,
+      semester: s.semester,
+    };
+    db.students.push(newStudent);
+
+    createdStudents.push({
+      id: newStudent.id,
+      examinerId: newStudent.examinerId,
+      userId: newStudent.userId,
+      rollNo: newStudent.rollNo,
+      name: newStudent.name,
+      course: newStudent.course,
+      semester: newStudent.semester,
+      username: newUser.username,
+      n: 0,
+    });
+  }
+
+  saveDatabase();
+
+  return res.json({
+    success: true,
+    message: `Successfully imported and enrolled ${createdStudents.length} students.`,
+    count: createdStudents.length,
+    students: createdStudents,
+  });
+});
+
+// --- Multi-Examiner Administration & First-Login Security Routes ---
+
+// 23. Examiner: First-Login Password Change
+apiRouter.post('/examiner/first-login-change-password', requireExaminer, (req: Request, res: Response) => {
+  const { newPassword } = req.body;
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password is required and must be at least 6 characters long.' });
+  }
+
+  const session = (req as any).sessionData || getSession(req);
+  const user = db.users.find(u => u.id === session.userId && u.role === 'examiner');
+  if (!user) {
+    return res.status(404).json({ error: 'Examiner user account not found.' });
+  }
+
+  user.passwordHash = hashPassword(newPassword);
+  user.mustChangePassword = false;
+  saveDatabase();
+
+  if (session) {
+    session.mustChangePassword = false;
+  }
+
+  res.json({
+    success: true,
+    message: 'Password changed successfully. Your account is now secured.',
+  });
+});
+
+// 24. Admin: View All Examiners
+apiRouter.get('/admin/examiners', requireAdmin, (_req: Request, res: Response) => {
+  const examiners = db.users
+    .filter(u => u.role === 'examiner')
+    .map(u => ({
+      id: u.id,
+      name: u.name || u.username,
+      username: u.username,
+      status: u.status || 'active',
+      createdAt: u.createdAt || '2026-01-01T00:00:00.000Z',
+      isAdmin: !!(u.isAdmin || u.id === 1),
+      mustChangePassword: !!u.mustChangePassword,
+      submissionStatus: u.submissionStatus || 'draft',
+      submittedAt: u.submittedAt,
+      studentsCount: db.students.filter(s => s.examinerId === u.id).length,
+    }));
+
+  res.json({ examiners });
+});
+
+// 25. Admin: Create New Examiner
+apiRouter.post('/admin/examiners/new', requireAdmin, (req: Request, res: Response) => {
+  const rawName = (req.body.name || '').toString().trim();
+  let rawUsername = (req.body.username || '').toString().trim();
+
+  if (!rawName) {
+    return res.status(400).json({ error: 'Examiner name is required.' });
+  }
+
+  // Derive username if not explicitly supplied (e.g. "Rahul" -> "rahul", lowercase alphanumeric)
+  if (!rawUsername) {
+    rawUsername = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  } else {
+    rawUsername = rawUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  if (!rawUsername) {
+    return res.status(400).json({ error: 'A valid username could not be generated. Please enter a valid username.' });
+  }
+
+  if (db.users.some(u => u.username.toLowerCase() === rawUsername.toLowerCase())) {
+    return res.status(400).json({ error: `Username "${rawUsername}" already exists. Please choose a different username.` });
+  }
+
+  // Initial password generated: examiner name (or username) + 654 (e.g. rahul654, anu654)
+  const initialPassword = `${rawUsername}654`;
+  const newExaminerId = db.nextUserId++;
+  const newExaminer: DbUser = {
+    id: newExaminerId,
+    name: rawName,
+    username: rawUsername,
+    passwordHash: hashPassword(initialPassword),
+    role: 'examiner',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    mustChangePassword: true,
+    isAdmin: false,
+  };
+
+  db.users.push(newExaminer);
+  saveDatabase();
+
+  res.json({
+    success: true,
+    message: `Examiner "${rawName}" created successfully.`,
+    examiner: {
+      id: newExaminer.id,
+      name: newExaminer.name,
+      username: newExaminer.username,
+      status: newExaminer.status,
+      createdAt: newExaminer.createdAt,
+      isAdmin: false,
+      mustChangePassword: true,
+      studentsCount: 0,
+    },
+  });
+});
+
+// 26. Admin: Toggle Examiner Status (Active <-> Disabled)
+apiRouter.post('/admin/examiners/:id/toggle-status', requireAdmin, (req: Request, res: Response) => {
+  const examinerId = parseInt(req.params.id, 10);
+  const session = (req as any).sessionData || getSession(req);
+
+  if (examinerId === session.userId) {
+    return res.status(400).json({ error: 'You cannot disable your own administrator account.' });
+  }
+
+  const examiner = db.users.find(u => u.id === examinerId && u.role === 'examiner');
+  if (!examiner) {
+    return res.status(404).json({ error: 'Examiner not found.' });
+  }
+
+  examiner.status = examiner.status === 'disabled' ? 'active' : 'disabled';
+  saveDatabase();
+
+  res.json({
+    success: true,
+    message: `Examiner "${examiner.name || examiner.username}" status updated to ${examiner.status}.`,
+    status: examiner.status,
+  });
+});
+
+// 27. Admin: Reset Examiner Password to Initial ({username}654)
+apiRouter.post('/admin/examiners/:id/reset-password', requireAdmin, (req: Request, res: Response) => {
+  const examinerId = parseInt(req.params.id, 10);
+  const examiner = db.users.find(u => u.id === examinerId && u.role === 'examiner');
+  if (!examiner) {
+    return res.status(404).json({ error: 'Examiner not found.' });
+  }
+
+  const initialPassword = `${examiner.username.toLowerCase()}654`;
+  examiner.passwordHash = hashPassword(initialPassword);
+  examiner.mustChangePassword = true;
+  saveDatabase();
+
+  res.json({
+    success: true,
+    message: `Password for "${examiner.name || examiner.username}" has been reset.`,
+  });
+});
+
+// 28. Admin: Edit Examiner Details
+apiRouter.post('/admin/examiners/:id/edit', requireAdmin, (req: Request, res: Response) => {
+  const examinerId = parseInt(req.params.id, 10);
+  const examiner = db.users.find(u => u.id === examinerId && u.role === 'examiner');
+  if (!examiner) {
+    return res.status(404).json({ error: 'Examiner not found.' });
+  }
+
+  const name = (req.body.name || '').toString().trim();
+  const username = (req.body.username || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (!name) {
+    return res.status(400).json({ error: 'Examiner name cannot be empty.' });
+  }
+
+  if (username && username !== examiner.username.toLowerCase()) {
+    if (db.users.some(u => u.id !== examinerId && u.username.toLowerCase() === username)) {
+      return res.status(400).json({ error: `Username "${username}" is already in use by another account.` });
+    }
+    examiner.username = username;
+  }
+
+  examiner.name = name;
+  saveDatabase();
+
+  res.json({
+    success: true,
+    message: `Examiner "${name}" updated successfully.`,
+    examiner: {
+      id: examiner.id,
+      name: examiner.name,
+      username: examiner.username,
+      status: examiner.status,
+      createdAt: examiner.createdAt,
+      isAdmin: !!(examiner.isAdmin || examiner.id === 1),
+      mustChangePassword: !!examiner.mustChangePassword,
+      studentsCount: db.students.filter(s => s.examinerId === examiner.id).length,
+    },
+  });
+});
+
+// 29. Admin: View Students of Specific Examiner (inside Manage Examiners only)
+apiRouter.get('/admin/examiners/:id/students', requireAdmin, (req: Request, res: Response) => {
+  const examinerId = parseInt(req.params.id, 10);
+  const examiner = db.users.find(u => u.id === examinerId && u.role === 'examiner');
+  if (!examiner) {
+    return res.status(404).json({ error: 'Examiner not found.' });
+  }
+
+  const studentList = db.students
+    .filter(s => s.examinerId === examinerId)
+    .map(s => {
+      const studentUser = db.users.find(u => u.id === s.userId);
+      const marksCount = db.marks.filter(m => m.studentId === s.id).length;
+      return {
+        id: s.id,
+        rollNo: s.rollNo,
+        name: s.name,
+        course: s.course,
+        username: studentUser?.username || '',
+        n: marksCount,
+      };
+    });
+
+  res.json({
+    examinerName: examiner.name || examiner.username,
+    students: studentList,
+    total: studentList.length,
+  });
+});
+
+// 30. Admin: Login As Specific Examiner (direct switch from Manage Examiners)
+apiRouter.post('/admin/examiners/:id/login-as', requireAdmin, (req: Request, res: Response) => {
+  const examinerId = parseInt(req.params.id, 10);
+  const examiner = db.users.find(u => u.id === examinerId && u.role === 'examiner');
+  if (!examiner) {
+    return res.status(404).json({ error: 'Examiner not found.' });
+  }
+
+  if (examiner.status === 'disabled') {
+    return res.status(403).json({ error: 'This examiner account is disabled.' });
+  }
+
+  const token = createSession({
+    userId: examiner.id,
+    role: 'examiner',
+    username: examiner.username,
+    examinerName: examiner.name || examiner.username,
+    isAdmin: !!(examiner.isAdmin || examiner.id === 1),
+    mustChangePassword: !!examiner.mustChangePassword,
+  });
+
+  setSessionCookie(req, res, token);
+
+  res.json({
+    success: true,
+    token,
+    role: 'examiner',
+    id: examiner.id,
+    username: examiner.username,
+    examinerName: examiner.name || examiner.username,
+    isAdmin: !!(examiner.isAdmin || examiner.id === 1),
+  });
+});
+
+// 31. Public: Active Examiners List for Login Account Selector (Names only, no passwords)
+apiRouter.get('/public/examiners', (_req: Request, res: Response) => {
+  const list = db.users
+    .filter(u => u.role === 'examiner' && u.status !== 'disabled')
+    .map(u => ({
+      id: u.id,
+      name: u.name || u.username,
+      username: u.username,
+      isAdmin: !!(u.isAdmin || u.id === 1),
+    }));
+  res.json({ examiners: list });
 });
 
 // 21. Student: Get My Results

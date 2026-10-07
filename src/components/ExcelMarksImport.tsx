@@ -5,12 +5,13 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
   RefreshCw,
   Eye,
   Check,
   ChevronDown,
   ChevronUp,
+  UserPlus,
+  BookOpen,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { StudentRecord } from '../types/index.ts';
@@ -20,18 +21,22 @@ interface ExcelMarksImportProps {
   students: StudentRecord[];
   onImportSuccess: () => void;
   showNotification: (type: 'success' | 'error', message: string) => void;
+  isAdmin?: boolean;
 }
 
-interface ParsedRow {
+interface ParsedSubjectRow {
+  rowNum: number;
   rollNo: string;
   studentName: string;
-  username: string;
-  course: string;
-  semester: string;
-  subjectCode: string;
-  subjectName: string;
-  maxMarks: number;
-  marksObtained: number | string;
+  english: number;
+  maths: number;
+  hindi: number;
+  social: number;
+  science: number;
+  totalMark: number;
+  percentage: number;
+  grade: string;
+  isNewStudent: boolean;
   isValid: boolean;
   validationError?: string;
 }
@@ -40,87 +45,146 @@ interface ValidationReport {
   totalRows: number;
   validRows: number;
   invalidRows: number;
-  uniqueStudents: number;
-  missingStudents: string[];
-  duplicateEntries: number;
+  newStudentsCount: number;
+  existingStudentsCount: number;
 }
 
 export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
   students,
   onImportSuccess,
   showNotification,
+  isAdmin = false,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [file, setFile] = useState<File | null>(null);
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [parsedRows, setParsedRows] = useState<ParsedSubjectRow[]>([]);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
-  const [replaceExisting, setReplaceExisting] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [showPreviewTable, setShowPreviewTable] = useState(false);
+  const [showPreviewTable, setShowPreviewTable] = useState(true);
   const [importSummary, setImportSummary] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Download Excel Template (.xlsx)
-  const handleDownloadTemplate = async () => {
+  /**
+   * Generates and downloads the official 10-column Blank Excel Template.
+   *
+   * The template contains EXACTLY these 10 columns in this specific order:
+   * 1. Roll No
+   * 2. Student Name
+   * 3. English
+   * 4. Maths
+   * 5. Hindi
+   * 6. Social
+   * 7. Science
+   * 8. Total Mark (automated formula: English + Maths + Hindi + Social + Science)
+   * 9. Percentage (automated formula: Total Mark / 500 * 100)
+   * 10. Grade (automated formula matching university grading regulations)
+   *
+   * Completely blank: NO sample/demo students, NO fake data, NO examiner credentials.
+   */
+  const handleDownloadBlankMarksTemplate = () => {
     try {
-      let rows: any[] = [];
-      try {
-        const res = await apiFetch('/api/examiner/excel-template');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.rows)) {
-            rows = data.rows;
-          }
-        }
-      } catch {
-        // Fallback to client-side student list
+      const headers = [
+        'Roll No',
+        'Student Name',
+        'English',
+        'Maths',
+        'Hindi',
+        'Social',
+        'Science',
+        'Total Mark',
+        'Percentage',
+        'Grade',
+      ];
+
+      // Build worksheet starting with headers
+      const worksheetData: any[][] = [headers];
+
+      // Add 25 blank candidate rows with empty strings so grid cells exist
+      for (let i = 0; i < 25; i++) {
+        worksheetData.push(['', '', '', '', '', '', '', '', '', '']);
       }
 
-      if (rows.length === 0) {
-        const defaultExams = ['Term 1', 'Term 2'];
-        const defaultSubjects = [
-          { code: 'CS101', name: 'Data Structures & Algorithms', maxMarks: 100 },
-          { code: 'CS102', name: 'Computer Architecture', maxMarks: 100 },
-          { code: 'CS103', name: 'Discrete Mathematics', maxMarks: 100 },
-          { code: 'CS104', name: 'Database Management Systems', maxMarks: 100 },
-        ];
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
-        for (const s of students) {
-          for (const exam of defaultExams) {
-            for (const sub of defaultSubjects) {
-              rows.push({
-                'Roll No': s.rollNo,
-                'Student Name': s.name,
-                'Username': s.username || s.rollNo.toLowerCase(),
-                'Course': s.course,
-                'Semester': exam === 'Term 1' ? 'Semester 1' : 'Semester 2',
-                'Subject Code': sub.code,
-                'Subject Name': sub.name,
-                'Maximum Marks': sub.maxMarks,
-                'Marks Obtained': '',
-                'Grade': '',
-                'Result': '',
-                'Exam Session': '2025-26',
-              });
-            }
-          }
-        }
+      // Embed Excel calculation formulas for rows 2 to 26 (1-based index)
+      // C: English, D: Maths, E: Hindi, F: Social, G: Science
+      // H: Total Mark, I: Percentage, J: Grade
+      for (let r = 2; r <= 26; r++) {
+        // Total Mark formula: sum of 5 subjects if any mark entered
+        worksheet['H' + r] = {
+          t: 'n',
+          f: `IF(COUNT(C${r}:G${r})>0,SUM(C${r}:G${r}),"")`,
+        };
+
+        // Percentage formula: Total / 5 (since max total is 500)
+        worksheet['I' + r] = {
+          t: 'n',
+          f: `IF(COUNT(C${r}:G${r})>0,ROUND(H${r}/5,2),"")`,
+        };
+
+        // Grade formula matching university grading rules:
+        // Pass mark per subject = 40. Any subject < 40 or percentage < 40 -> 'F'
+        // >= 90: 'A+', >= 80: 'A', >= 70: 'B+', >= 60: 'B', >= 50: 'C', else 'D'
+        worksheet['J' + r] = {
+          t: 's',
+          f: `IF(COUNT(C${r}:G${r})<5,"",IF(OR(C${r}<40,D${r}<40,E${r}<40,F${r}<40,G${r}<40),"F",IF(I${r}>=90,"A+",IF(I${r}>=80,"A",IF(I${r}>=70,"B+",IF(I${r}>=60,"B",IF(I${r}>=50,"C","D"))))))`,
+        };
       }
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
+      // Column widths for optimal readability
+      worksheet['!cols'] = [
+        { wch: 14 }, // Roll No
+        { wch: 28 }, // Student Name
+        { wch: 12 }, // English
+        { wch: 12 }, // Maths
+        { wch: 12 }, // Hindi
+        { wch: 12 }, // Social
+        { wch: 12 }, // Science
+        { wch: 14 }, // Total Mark
+        { wch: 14 }, // Percentage
+        { wch: 12 }, // Grade
+      ];
+
+      worksheet['!ref'] = 'A1:J26';
+
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Marks Entry');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Student Marks');
 
-      // Download .xlsx file
-      XLSX.writeFile(workbook, 'ABC_University_Marks_Template_2025_26.xlsx');
-      showNotification('success', 'Excel template downloaded. Enter marks offline and upload here.');
+      XLSX.writeFile(workbook, 'ABC_University_Blank_Student_Marks_Template.xlsx');
+
+      setIsOpen(true);
+      showNotification(
+        'success',
+        'Blank template downloaded with automated formulas. Enter Roll No, Student Name, and subject marks, then click "Upload Completed Excel".'
+      );
     } catch (err: any) {
-      showNotification('error', `Failed to download template: ${err.message}`);
+      showNotification('error', `Failed to generate Excel template: ${err.message}`);
     }
   };
 
-  // 2. Handle File Selection and Parsing
+  // Helper to calculate Grade according to university grading rules
+  const calculateGrade = (
+    eng: number,
+    math: number,
+    hin: number,
+    soc: number,
+    sci: number,
+    pct: number
+  ): string => {
+    // If any subject is below pass mark (40) or percentage is below 40 -> FAIL (F)
+    if (eng < 40 || math < 40 || hin < 40 || soc < 40 || sci < 40 || pct < 40) {
+      return 'F';
+    }
+    if (pct >= 90) return 'A+';
+    if (pct >= 80) return 'A';
+    if (pct >= 70) return 'B+';
+    if (pct >= 60) return 'B';
+    if (pct >= 50) return 'C';
+    return 'D';
+  };
+
+  // Handle file selection from "Upload Completed Excel"
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -138,15 +202,20 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
-        if (rawJson.length === 0) {
-          showNotification('error', 'The uploaded Excel file contains no data rows.');
+        if (!firstSheetName) {
+          showNotification('error', 'The uploaded Excel file contains no worksheets.');
           return;
         }
 
-        validateRows(rawJson);
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+        if (!rawJson || rawJson.length < 2) {
+          showNotification('error', 'The uploaded Excel file contains no student data rows.');
+          return;
+        }
+
+        validateSubjectRows(rawJson);
       } catch (err: any) {
         showNotification('error', `Failed to parse Excel file: ${err.message}`);
       }
@@ -155,27 +224,56 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
     reader.readAsArrayBuffer(fileObj);
   };
 
-  // 3. Validation Logic
-  const validateRows = (rawRows: any[]) => {
-    const parsed: ParsedRow[] = [];
-    const missingStudentsSet = new Set<string>();
-    const seenCombos = new Set<string>();
-    let duplicateCount = 0;
-    const uniqueStudentRolls = new Set<string>();
+  // Validate the 10-column Excel sheet data
+  const validateSubjectRows = (rawRows: any[][]) => {
+    const headerRow = (rawRows[0] || []).map((h) => String(h || '').trim().toLowerCase());
 
-    const knownRolls = new Map<string, StudentRecord>();
-    students.forEach((s) => knownRolls.set(s.rollNo.trim().toLowerCase(), s));
+    const findCol = (keys: string[]): number => {
+      return headerRow.findIndex((col) => keys.some((k) => col.includes(k)));
+    };
 
-    for (const r of rawRows) {
-      const rollNo = (r['Roll No'] || r.rollNo || r.RollNo || r.roll_no || '').toString().trim();
-      const studentName = (r['Student Name'] || r.studentName || r.name || '').toString().trim();
-      const username = (r['Username'] || r.username || '').toString().trim();
-      const course = (r['Course'] || r.course || '').toString().trim();
-      const semester = (r['Semester'] || r.semester || r.exam || 'Term 1').toString().trim();
-      const subjectCode = (r['Subject Code'] || r.subjectCode || r.code || '').toString().trim();
-      const subjectName = (r['Subject Name'] || r.subjectName || r.subject || '').toString().trim();
-      const rawMax = r['Maximum Marks'] || r.maxMarks || r.max_marks || 100;
-      const rawMarks = r['Marks Obtained'] !== undefined ? r['Marks Obtained'] : r.marksObtained !== undefined ? r.marksObtained : r.marks;
+    const rollIdx = findCol(['roll no', 'roll_no', 'roll', 'registration']);
+    const nameIdx = findCol(['student name', 'name', 'full name', 'candidate']);
+    const engIdx = findCol(['english', 'eng']);
+    const mathIdx = findCol(['maths', 'math', 'mathematics']);
+    const hinIdx = findCol(['hindi', 'hin']);
+    const socIdx = findCol(['social', 'social studies', 'soc']);
+    const sciIdx = findCol(['science', 'sci']);
+    const totalIdx = findCol(['total mark', 'total marks', 'total']);
+    const pctIdx = findCol(['percentage', 'percent', 'pct', '%']);
+    const gradeIdx = findCol(['grade']);
+
+    const existingRolls = new Set(students.map((s) => s.rollNo.trim().toLowerCase()));
+    const seenRollsInFile = new Map<string, number>();
+
+    const parsed: ParsedSubjectRow[] = [];
+    let newStudentsCount = 0;
+    let existingStudentsCount = 0;
+
+    for (let i = 1; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      if (!row || !Array.isArray(row)) continue;
+
+      // Skip empty blank template rows
+      const isBlank = row.every((c) => c === '' || c === null || c === undefined);
+      if (isBlank) continue;
+
+      const rowNum = i + 1; // 1-based index including header
+      const rollNo = String(rollIdx >= 0 ? row[rollIdx] : row[0] || '').trim();
+      const studentName = String(nameIdx >= 0 ? row[nameIdx] : row[1] || '').trim();
+
+      const parseNum = (idx: number, fallbackIdx: number): number | null => {
+        const val = idx >= 0 ? row[idx] : row[fallbackIdx];
+        if (val === '' || val === null || val === undefined) return null;
+        const num = Number(val);
+        return isNaN(num) ? null : num;
+      };
+
+      const eng = parseNum(engIdx, 2);
+      const math = parseNum(mathIdx, 3);
+      const hin = parseNum(hinIdx, 4);
+      const soc = parseNum(socIdx, 5);
+      const sci = parseNum(sciIdx, 6);
 
       let isValid = true;
       let validationError = '';
@@ -183,62 +281,72 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
       if (!rollNo) {
         isValid = false;
         validationError = 'Missing Roll No';
-      } else {
-        uniqueStudentRolls.add(rollNo);
-        const match = knownRolls.get(rollNo.toLowerCase());
-        if (!match) {
-          isValid = false;
-          validationError = `Student "${rollNo}" not registered`;
-          missingStudentsSet.add(rollNo);
-        }
-      }
-
-      if (isValid && !subjectName && !subjectCode) {
+      } else if (!studentName) {
         isValid = false;
-        validationError = 'Missing Subject Name or Code';
+        validationError = 'Missing Student Name';
       }
 
-      const maxMarksNum = Number(rawMax) || 100;
-
-      if (isValid) {
-        if (rawMarks === '' || rawMarks === null || rawMarks === undefined) {
+      // Check duplicate within uploaded file
+      if (rollNo) {
+        const lowerRoll = rollNo.toLowerCase();
+        if (seenRollsInFile.has(lowerRoll)) {
           isValid = false;
-          validationError = 'Empty marks field';
+          validationError = `Duplicate Roll No in file (also at row ${seenRollsInFile.get(lowerRoll)})`;
         } else {
-          const numMarks = Number(rawMarks);
-          if (isNaN(numMarks)) {
-            isValid = false;
-            validationError = `Invalid non-numeric marks "${rawMarks}"`;
-          } else if (numMarks < 0) {
-            isValid = false;
-            validationError = `Marks cannot be negative (${numMarks})`;
-          } else if (numMarks > maxMarksNum) {
-            isValid = false;
-            validationError = `Marks (${numMarks}) exceed Max (${maxMarksNum})`;
-          }
+          seenRollsInFile.set(lowerRoll, rowNum);
         }
       }
 
-      // Check duplicates in uploaded sheet
-      const comboKey = `${rollNo.toLowerCase()}__${semester.toLowerCase()}__${(subjectCode || subjectName).toLowerCase()}`;
-      if (seenCombos.has(comboKey)) {
-        duplicateCount++;
-        isValid = false;
-        validationError = 'Duplicate entry in upload sheet';
-      } else {
-        seenCombos.add(comboKey);
+      // Validate subject marks (each 0–100)
+      if (isValid) {
+        if (eng === null || eng < 0 || eng > 100) {
+          isValid = false;
+          validationError = `Invalid English mark (${eng ?? 'blank'}). Must be 0–100`;
+        } else if (math === null || math < 0 || math > 100) {
+          isValid = false;
+          validationError = `Invalid Maths mark (${math ?? 'blank'}). Must be 0–100`;
+        } else if (hin === null || hin < 0 || hin > 100) {
+          isValid = false;
+          validationError = `Invalid Hindi mark (${hin ?? 'blank'}). Must be 0–100`;
+        } else if (soc === null || soc < 0 || soc > 100) {
+          isValid = false;
+          validationError = `Invalid Social mark (${soc ?? 'blank'}). Must be 0–100`;
+        } else if (sci === null || sci < 0 || sci > 100) {
+          isValid = false;
+          validationError = `Invalid Science mark (${sci ?? 'blank'}). Must be 0–100`;
+        }
+      }
+
+      const validEng = eng ?? 0;
+      const validMath = math ?? 0;
+      const validHin = hin ?? 0;
+      const validSoc = soc ?? 0;
+      const validSci = sci ?? 0;
+
+      // Automatically calculate Total Mark, Percentage, and Grade
+      const totalMark = validEng + validMath + validHin + validSoc + validSci;
+      const percentage = Number(((totalMark / 500) * 100).toFixed(2));
+      const grade = calculateGrade(validEng, validMath, validHin, validSoc, validSci, percentage);
+
+      const isNewStudent = !existingRolls.has(rollNo.toLowerCase());
+      if (isValid) {
+        if (isNewStudent) newStudentsCount++;
+        else existingStudentsCount++;
       }
 
       parsed.push({
+        rowNum,
         rollNo,
         studentName,
-        username,
-        course,
-        semester,
-        subjectCode,
-        subjectName: subjectName || subjectCode,
-        maxMarks: maxMarksNum,
-        marksObtained: rawMarks,
+        english: validEng,
+        maths: validMath,
+        hindi: validHin,
+        social: validSoc,
+        science: validSci,
+        totalMark,
+        percentage,
+        grade,
+        isNewStudent,
         isValid,
         validationError,
       });
@@ -252,25 +360,29 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
       totalRows: parsed.length,
       validRows: validCount,
       invalidRows: invalidCount,
-      uniqueStudents: uniqueStudentRolls.size,
-      missingStudents: Array.from(missingStudentsSet),
-      duplicateEntries: duplicateCount,
+      newStudentsCount,
+      existingStudentsCount,
     });
     setShowPreviewTable(true);
+
+    if (parsed.length === 0) {
+      showNotification('error', 'No candidate rows found in the uploaded file.');
+    }
   };
 
-  // 4. Import Marks into Database
+  // Confirm and Import to Database
   const handleConfirmImport = async () => {
     if (!validation || validation.validRows === 0) {
-      showNotification('error', 'No valid mark records to import.');
+      showNotification('error', 'No valid student marks records to import.');
       return;
     }
 
     if (validation.invalidRows > 0) {
-      const proceed = window.confirm(
-        `Warning: ${validation.invalidRows} invalid entries detected. Only the ${validation.validRows} valid rows will be imported. Proceed?`
+      showNotification(
+        'error',
+        `Validation failed: ${validation.invalidRows} invalid row(s) detected in the Excel file. All rows must be valid before importing. Partial imports are not permitted.`
       );
-      if (!proceed) return;
+      return;
     }
 
     setIsImporting(true);
@@ -281,38 +393,30 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
         .map((r) => ({
           rollNo: r.rollNo,
           studentName: r.studentName,
-          exam: r.semester,
-          subject: r.subjectName,
-          marks: Number(r.marksObtained),
-          maxMarks: r.maxMarks,
+          english: r.english,
+          maths: r.maths,
+          hindi: r.hindi,
+          social: r.social,
+          science: r.science,
+          totalMark: r.totalMark,
+          percentage: r.percentage,
+          grade: r.grade,
         }));
 
-      const res = await apiFetch('/api/examiner/import-marks', {
+      const res = await apiFetch('/api/examiner/import-student-marks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          rows: validRowsToImport,
-          replaceExisting,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ students: validRowsToImport }),
       });
 
-      const contentType = res.headers.get('content-type') || '';
-      let data: any = null;
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        throw new Error(`Server returned unexpected response (${res.status})`);
-      }
-
+      const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || 'Import failed');
       }
 
-      const summary = `Import successful: ${data.studentsUpdated || 0} students updated, ${
-        data.marksUpdated || 0
-      } marks updated, ${data.skipped || 0} skipped, ${data.errors?.length || 0} errors.`;
+      const summary = `Import complete: ${data.studentsCreated || 0} new student(s) enrolled, ${
+        data.studentsUpdated || 0
+      } student(s) updated, ${data.marksUpdated || 0} marks recorded.`;
 
       setImportSummary(summary);
       showNotification('success', summary);
@@ -323,7 +427,7 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
       setValidation(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
 
-      // Trigger dashboard reload
+      // Trigger dashboard reload for the logged-in examiner
       onImportSuccess();
     } catch (err: any) {
       showNotification('error', `Import failed: ${err.message}`);
@@ -337,7 +441,6 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
     setParsedRows([]);
     setValidation(null);
     setImportSummary(null);
-    setShowPreviewTable(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -354,13 +457,13 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
           </div>
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-              <span>Excel Marks Import</span>
+              <span>Excel Marks Import & Candidate Enrollment</span>
               <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                .xlsx / .xls / .csv
+                10-Column Standard (.xlsx)
               </span>
             </h2>
             <p className="text-[11px] text-slate-500">
-              Download student template, enter marks offline in Excel, upload & validate before updating gradebook.
+              Download blank 10-column Excel template (Roll No, Name, English, Maths, Hindi, Social, Science, Total, %, Grade), fill marks offline, and upload.
             </p>
           </div>
         </div>
@@ -386,15 +489,30 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
           {/* Action Deck */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
+              {/* + ADD STUDENTS USING EXCEL Button: Automatically generates/downloads blank Excel template */}
+              {!isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleDownloadBlankMarksTemplate}
+                  title="Generate and download blank 10-column Excel template"
+                  className="px-4 py-2 font-bold text-[#0f2042] bg-amber-100 hover:bg-amber-200 border border-amber-300 hover:border-amber-400 rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4 text-amber-800" />
+                  <span>+ ADD STUDENTS USING EXCEL</span>
+                </button>
+              )}
+
+              {/* Standard Download Excel Template */}
               <button
                 type="button"
-                onClick={handleDownloadTemplate}
+                onClick={handleDownloadBlankMarksTemplate}
                 className="px-3.5 py-2 font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-blue-600" />
-                <span>Download Excel Template</span>
+                <span>Download Blank Template (.xlsx)</span>
               </button>
 
+              {/* Upload Completed Excel */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -423,16 +541,8 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={replaceExisting}
-                  onChange={(e) => setReplaceExisting(e.target.checked)}
-                  className="rounded text-[#0f2042] focus:ring-0"
-                />
-                <span>Replace/Update Existing Marks</span>
-              </label>
+            <div className="text-[11px] text-slate-500 font-mono">
+              Auto-calculates: Total Mark = Eng + Math + Hin + Soc + Sci · Grade (A+, A, B+, B, C, D, F)
             </div>
           </div>
 
@@ -450,7 +560,7 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
           {/* Validation Report Deck */}
           {validation && (
             <div className="space-y-3 pt-2 border-t border-slate-200">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                   <span className="text-[10px] text-slate-500 uppercase font-mono block">Total Rows</span>
                   <span className="text-base font-bold text-slate-900 font-mono">{validation.totalRows}</span>
@@ -472,94 +582,130 @@ export const ExcelMarksImport: React.FC<ExcelMarksImportProps> = ({
                   <span className="text-base font-bold font-mono">{validation.invalidRows}</span>
                 </div>
 
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-500 uppercase font-mono block">Students Matched</span>
-                  <span className="text-base font-bold text-slate-900 font-mono">
-                    {validation.uniqueStudents} / {students.length}
-                  </span>
+                <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-200">
+                  <span className="text-[10px] text-blue-700 uppercase font-mono block">New Students</span>
+                  <span className="text-base font-bold text-blue-800 font-mono">{validation.newStudentsCount}</span>
+                </div>
+
+                <div className="bg-purple-50/70 p-2.5 rounded-lg border border-purple-200">
+                  <span className="text-[10px] text-purple-700 uppercase font-mono block">Existing Updated</span>
+                  <span className="text-base font-bold text-purple-800 font-mono">{validation.existingStudentsCount}</span>
                 </div>
               </div>
 
-              {/* Error Callout */}
-              {validation.missingStudents.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-lg flex items-start gap-2 text-[11px]">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Unmatched Student Roll Numbers: </span>
-                    <span>{validation.missingStudents.join(', ')}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Commit Import Button */}
-              <div className="flex items-center justify-between pt-1">
+              {/* Commit Import Button Deck */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowPreviewTable(!showPreviewTable)}
                   className="text-xs text-[#0f2042] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>{showPreviewTable ? 'Hide Preview Table' : 'Show Preview Table'}</span>
+                  <span>{showPreviewTable ? 'Hide 10-Column Preview' : 'Show 10-Column Preview'}</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleConfirmImport}
-                  disabled={isImporting || validation.validRows === 0}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isImporting ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Writing to Database...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Confirm & Import {validation.validRows} Marks</span>
-                    </>
+                <div className="flex flex-wrap items-center gap-2">
+                  {validation.invalidRows > 0 && (
+                    <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Fix {validation.invalidRows} invalid row(s) below to allow import
+                    </span>
                   )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmImport}
+                    disabled={isImporting || validation.validRows === 0 || validation.invalidRows > 0}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isImporting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Importing into Gradebook...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>
+                          {validation.invalidRows > 0
+                            ? `Cannot Import (${validation.invalidRows} Errors)`
+                            : `Confirm & Import ${validation.validRows} Student Marks`}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Detailed Preview Table */}
+              {/* 10-Column Detailed Preview Table */}
               {showPreviewTable && parsedRows.length > 0 && (
-                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg overflow-x-auto">
+                <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg overflow-x-auto">
                   <table className="w-full text-left text-[11px] border-collapse">
-                    <thead className="bg-slate-100 text-slate-600 sticky top-0 uppercase font-mono text-[10px]">
+                    <thead className="bg-slate-100 text-slate-700 sticky top-0 uppercase font-semibold text-[10px]">
                       <tr>
-                        <th className="py-2 px-3">Status</th>
-                        <th className="py-2 px-3">Roll No</th>
-                        <th className="py-2 px-3">Student</th>
-                        <th className="py-2 px-3">Exam</th>
-                        <th className="py-2 px-3">Subject</th>
-                        <th className="py-2 px-3 text-right">Marks</th>
-                        <th className="py-2 px-3">Validation Note</th>
+                        <th className="py-2.5 px-3">Status</th>
+                        <th className="py-2.5 px-3 font-mono">1. Roll No</th>
+                        <th className="py-2.5 px-3">2. Student Name</th>
+                        <th className="py-2.5 px-3 text-right">3. English</th>
+                        <th className="py-2.5 px-3 text-right">4. Maths</th>
+                        <th className="py-2.5 px-3 text-right">5. Hindi</th>
+                        <th className="py-2.5 px-3 text-right">6. Social</th>
+                        <th className="py-2.5 px-3 text-right">7. Science</th>
+                        <th className="py-2.5 px-3 text-right font-mono">8. Total Mark</th>
+                        <th className="py-2.5 px-3 text-right font-mono">9. Percentage</th>
+                        <th className="py-2.5 px-3 text-center">10. Grade</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
                       {parsedRows.map((r, i) => (
-                        <tr key={i} className={r.isValid ? 'hover:bg-slate-50' : 'bg-rose-50/50'}>
-                          <td className="py-1.5 px-3">
+                        <tr
+                          key={i}
+                          className={
+                            r.isValid
+                              ? 'hover:bg-slate-50 transition-colors'
+                              : 'bg-rose-50/60 text-rose-900'
+                          }
+                        >
+                          <td className="py-2 px-3 whitespace-nowrap">
                             {r.isValid ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline" />
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                {r.isNewStudent ? 'New' : 'Update'}
+                              </span>
                             ) : (
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-600 inline" />
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-300"
+                                title={r.validationError}
+                              >
+                                <AlertCircle className="w-3 h-3 text-rose-600" />
+                                {r.validationError}
+                              </span>
                             )}
                           </td>
-                          <td className="py-1.5 px-3 font-semibold text-slate-800">{r.rollNo}</td>
-                          <td className="py-1.5 px-3 font-sans text-slate-700">{r.studentName || '—'}</td>
-                          <td className="py-1.5 px-3 text-slate-600">{r.semester}</td>
-                          <td className="py-1.5 px-3 font-sans text-slate-700">{r.subjectName}</td>
-                          <td className="py-1.5 px-3 text-right font-bold text-slate-900">
-                            {r.marksObtained} / {r.maxMarks}
+                          <td className="py-2 px-3 font-bold text-slate-900">{r.rollNo}</td>
+                          <td className="py-2 px-3 font-sans font-medium text-slate-800">{r.studentName}</td>
+                          <td className="py-2 px-3 text-right">{r.english}</td>
+                          <td className="py-2 px-3 text-right">{r.maths}</td>
+                          <td className="py-2 px-3 text-right">{r.hindi}</td>
+                          <td className="py-2 px-3 text-right">{r.social}</td>
+                          <td className="py-2 px-3 text-right">{r.science}</td>
+                          <td className="py-2 px-3 text-right font-bold text-[#0f2042] bg-slate-50">
+                            {r.totalMark} / 500
                           </td>
-                          <td className="py-1.5 px-3 font-sans text-[10px]">
-                            {r.isValid ? (
-                              <span className="text-emerald-700 font-medium">Valid</span>
-                            ) : (
-                              <span className="text-rose-700 font-semibold">{r.validationError}</span>
-                            )}
+                          <td className="py-2 px-3 text-right font-bold text-slate-900 bg-slate-50">
+                            {r.percentage}%
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded font-bold text-[10px] ${
+                                r.grade === 'F'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : r.grade === 'A+' || r.grade === 'A'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-blue-100 text-blue-800 border border-blue-200'
+                              }`}
+                            >
+                              {r.grade}
+                            </span>
                           </td>
                         </tr>
                       ))}

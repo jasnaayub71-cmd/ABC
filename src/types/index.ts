@@ -6,12 +6,26 @@ export interface User {
 
 export interface StudentRecord {
   id: number;
+  examinerId?: number;
+  examinerName?: string;
   userId: number;
   rollNo: string;
   name: string;
   course: string;
+  semester?: string;
   username?: string;
   n?: number; // count of marks entries
+}
+
+export interface ExaminerAccount {
+  id: number;
+  name: string;
+  username: string;
+  status: 'active' | 'disabled';
+  createdAt: string;
+  isAdmin: boolean;
+  mustChangePassword?: boolean;
+  studentsCount: number;
 }
 
 export interface MarkRecord {

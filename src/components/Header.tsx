@@ -5,6 +5,8 @@ import universityCrest from '../assets/images/university_crest_1790954948850.jpg
 interface HeaderProps {
   role?: 'examiner' | 'student' | null;
   username?: string;
+  examinerName?: string;
+  isAdmin?: boolean;
   studentName?: string;
   onLogout: () => void;
   activeTab: 'student' | 'examiner';
@@ -16,6 +18,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   role,
   username,
+  examinerName,
+  isAdmin,
   studentName,
   onLogout,
   activeTab,
@@ -101,11 +105,24 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="flex items-center justify-end gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-xs text-amber-300 block font-semibold leading-tight">
-                      {role === 'examiner' ? `Examiner: ${username}` : `Student: ${studentName || username}`}
+                      {role === 'examiner'
+                        ? `Examiner: ${isAdmin ? (examinerName || 'Controller of Examinations') : (examinerName || username)}`
+                        : `Student: ${studentName || username}`}
                     </span>
+                    {role === 'examiner' && (
+                      <span
+                        className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border ml-0.5 ${
+                          isAdmin
+                            ? 'text-purple-200 bg-purple-900/60 border-purple-500/40'
+                            : 'text-blue-200 bg-blue-900/60 border-blue-500/40'
+                        }`}
+                      >
+                        {isAdmin ? 'ADMINISTRATOR' : 'EXAMINER'}
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] text-slate-400 font-mono">
-                    {role === 'examiner' ? 'Full Gradebook Access' : 'Verified Candidate Result'}
+                    {role === 'examiner' ? 'Faculty Gradebook Access' : 'Verified Candidate Result'}
                   </span>
                 </div>
                 <button

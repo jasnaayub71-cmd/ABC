@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, ArrowRight, UserCheck } from 'lucide-react';
 import { apiFetch, setStoredSessionToken } from '../utils/api.ts';
 
 interface ExaminerLoginProps {
-  onLoginSuccess: (username: string) => void;
+  onLoginSuccess: (username: string, examinerData?: any) => void;
+}
+
+interface ExaminerSummary {
+  id: number;
+  name: string;
+  username: string;
+  isAdmin: boolean;
 }
 
 export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) => {
@@ -12,6 +19,38 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Examiner account selection
+  const [examinersList, setExaminersList] = useState<ExaminerSummary[]>([]);
+  const [selectedExaminer, setSelectedExaminer] = useState<ExaminerSummary | null>(null);
+
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchExaminers = async () => {
+      try {
+        const res = await apiFetch('/api/public/examiners');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.examiners)) {
+            setExaminersList(data.examiners);
+          }
+        }
+      } catch {
+        // Fallback silently if offline or on initial load
+      }
+    };
+    fetchExaminers();
+  }, []);
+
+  const handleSelectExaminer = (ex: ExaminerSummary) => {
+    setSelectedExaminer(ex);
+    setUsername(ex.username);
+    setError(null);
+    setTimeout(() => {
+      passwordInputRef.current?.focus();
+    }, 50);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +89,7 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
         setStoredSessionToken(data.token);
       }
 
-      onLoginSuccess(data.username);
+      onLoginSuccess(data.username, data);
     } catch (err: any) {
       setError(err.message || 'Examiner login failed. Please verify credentials.');
     } finally {
@@ -89,10 +128,42 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
               </div>
             )}
 
+            {/* Select/Identify Examiner Account as specified in workflow */}
+            {examinersList.length > 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                  Select Your Examiner Account
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {examinersList.map((ex) => {
+                    const isSelected = selectedExaminer?.id === ex.id || username.toLowerCase() === ex.username.toLowerCase();
+                    return (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => handleSelectExaminer(ex)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 border ${
+                          isSelected
+                            ? 'bg-[#0f2042] text-amber-300 border-[#0f2042] shadow-2xs ring-1 ring-amber-400/50'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400'
+                        }`}
+                      >
+                        <UserCheck className={`w-3 h-3 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
+                        <span>{ex.name}</span>
+                        {ex.isAdmin && (
+                          <span className="text-[10px] text-amber-500 font-bold ml-0.5">(Admin)</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="examiner-username" className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Examiner Username
+                  Username
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -104,10 +175,13 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
                     type="text"
                     autoComplete="username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setSelectedExaminer(null);
+                    }}
                     placeholder="Enter examiner username"
                     required
-                    className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#0f2042] focus:bg-white transition-all"
+                    className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#0f2042] focus:bg-white transition-all font-mono"
                   />
                 </div>
               </div>
@@ -121,6 +195,7 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
+                    ref={passwordInputRef}
                     id="examiner-password"
                     name="password"
                     autoComplete="current-password"
@@ -158,10 +233,10 @@ export const ExaminerLogin: React.FC<ExaminerLoginProps> = ({ onLoginSuccess }) 
               </button>
             </form>
 
-            {/* Prompt reminder note */}
+            {/* Note */}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] text-slate-600 leading-relaxed mt-2">
-              <span className="font-semibold text-slate-800 block mb-0.5">Faculty Privileges:</span>
-              Examiners can add new students, manage and update individual exam marks per subject, toggle result publishing, and update the examiner password.
+              <span className="font-semibold text-slate-800 block mb-0.5">Faculty Isolation:</span>
+              Each examiner securely authenticates into their private dashboard to evaluate and manage marks for their designated students.
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ interface MarksManagerModalProps {
   onClose: () => void;
   student: any;
   onMarksUpdated?: () => void;
+  isLocked?: boolean;
 }
 
 export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
@@ -15,6 +16,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
   onClose,
   student,
   onMarksUpdated,
+  isLocked = false,
 }) => {
   const [marks, setMarks] = useState<MarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,7 +205,10 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
   };
 
   const handleDeleteMark = async (markId: number) => {
-    if (!window.confirm('Delete this mark entry?')) return;
+    if (isLocked) {
+      setError('Gradebook is submitted and locked. Reopen gradebook to modify marks.');
+      return;
+    }
 
     setError(null);
     try {
@@ -281,14 +286,25 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
             </div>
           )}
 
-          {/* Add Marks Form (Card) */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Plus className="w-4 h-4 text-[#0f2042]" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Add New Mark Entry
-              </h4>
+          {/* Add Marks Form (Card) or Locked Notice */}
+          {isLocked ? (
+            <div className="bg-emerald-50/80 border border-emerald-200 text-emerald-950 rounded-xl p-3.5 text-xs flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <div>
+                <span className="font-bold block">Gradebook is Submitted & Finalized (Read-Only)</span>
+                <span className="text-[11px] text-emerald-800">
+                  Marks are officially locked. To make updates, reopen the gradebook from the dashboard.
+                </span>
+              </div>
             </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Plus className="w-4 h-4 text-[#0f2042]" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Add New Mark Entry
+                </h4>
+              </div>
 
             <form onSubmit={handleAddMark} className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
               <div className="sm:col-span-1">
@@ -368,6 +384,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
               </div>
             </form>
           </div>
+        )}
 
           {/* Marks Table */}
           <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
@@ -397,7 +414,7 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
                       <th className="py-2.5 px-3 font-semibold">Subject</th>
                       <th className="py-2.5 px-3 font-semibold w-28">Marks</th>
                       <th className="py-2.5 px-3 font-semibold w-28">Max Marks</th>
-                      <th className="py-2.5 px-3 font-semibold text-right w-36">Actions</th>
+                      {!isLocked && <th className="py-2.5 px-3 font-semibold text-right w-36">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -413,62 +430,80 @@ export const MarksManagerModal: React.FC<MarksManagerModalProps> = ({
                       return (
                         <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-2 px-3">
-                            <input
-                              type="text"
-                              value={rowState.exam}
-                              onChange={(e) => handleRowChange(m.id, 'exam', e.target.value)}
-                              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
-                            />
+                            {isLocked ? (
+                              <span className="font-semibold text-slate-800">{rowState.exam}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={rowState.exam}
+                                onChange={(e) => handleRowChange(m.id, 'exam', e.target.value)}
+                                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
+                              />
+                            )}
                           </td>
                           <td className="py-2 px-3">
-                            <input
-                              type="text"
-                              value={rowState.subject}
-                              onChange={(e) => handleRowChange(m.id, 'subject', e.target.value)}
-                              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
-                            />
+                            {isLocked ? (
+                              <span className="text-slate-800">{rowState.subject}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={rowState.subject}
+                                onChange={(e) => handleRowChange(m.id, 'subject', e.target.value)}
+                                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
+                              />
+                            )}
                           </td>
                           <td className="py-2 px-3">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={rowState.marks}
-                              onChange={(e) => handleRowChange(m.id, 'marks', e.target.value)}
-                              className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
-                            />
+                            {isLocked ? (
+                              <span className="font-mono font-bold text-slate-900">{rowState.marks}</span>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={rowState.marks}
+                                onChange={(e) => handleRowChange(m.id, 'marks', e.target.value)}
+                                className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
+                              />
+                            )}
                           </td>
                           <td className="py-2 px-3">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="1"
-                              value={rowState.maxMarks}
-                              onChange={(e) => handleRowChange(m.id, 'maxMarks', e.target.value)}
-                              className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
-                            />
+                            {isLocked ? (
+                              <span className="font-mono text-slate-600">/ {rowState.maxMarks}</span>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="1"
+                                value={rowState.maxMarks}
+                                onChange={(e) => handleRowChange(m.id, 'maxMarks', e.target.value)}
+                                className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded focus:border-[#0f2042] focus:outline-hidden"
+                              />
+                            )}
                           </td>
-                          <td className="py-2 px-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveRow(m.id)}
-                                disabled={isSaving}
-                                className="px-2.5 py-1 text-[11px] font-semibold bg-[#0f2042] text-amber-300 hover:bg-[#162f61] rounded transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
-                              >
-                                <Save className="w-3 h-3" />
-                                {isSaving ? '...' : 'Save'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteMark(m.id)}
-                                className="px-2 py-1 text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded transition-colors cursor-pointer flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </button>
-                            </div>
-                          </td>
+                          {!isLocked && (
+                            <td className="py-2 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveRow(m.id)}
+                                  disabled={isSaving}
+                                  className="px-2.5 py-1 text-[11px] font-semibold bg-[#0f2042] text-amber-300 hover:bg-[#162f61] rounded transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Save className="w-3 h-3" />
+                                  {isSaving ? '...' : 'Save'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMark(m.id)}
+                                  className="px-2 py-1 text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

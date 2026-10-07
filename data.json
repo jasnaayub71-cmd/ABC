@@ -1,85 +1,156 @@
 {
   "instituteName": "ABC International University Delhi",
-  "isPublished": true,
+  "isPublished": false,
   "users": [
     {
       "id": 1,
       "username": "examiner",
+      "name": "Controller of Examinations",
       "passwordHash": "0123456789abcdef0123456789abcdef:83d20b79c8fa2c5da1d90a76a58e90845aa6dde75417af8c460aa81c92fe2b8213bf8f93724fbefb3fc4228d3be7d32d7be9ab40c60cf5d814287e7c4d97b1a5",
-      "role": "examiner"
-    },
-    {
-      "id": 2,
-      "username": "Abhinav",
-      "passwordHash": "0123456789abcdef0123456789abcdef:5d0d9045efbfb1efa655610820531e1bfd755bf5b75aa28db47e50ebee885fdf2e7a81369f40fc70fb0c4d743099785b86f9079048d5c7ec457ca392a6695af1",
-      "role": "examiner"
+      "role": "examiner",
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "mustChangePassword": false,
+      "isAdmin": true
     },
     {
       "id": 3,
-      "username": "anu",
-      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
-      "role": "student"
+      "name": "Rahul",
+      "username": "rahul",
+      "passwordHash": "77c9ed994defea2829cb52d6ced561ec:7368047573f8420f657d54a7d434c74f5253cbb9942481d4ab1e8acd58bd774e10daefb6accdd4422ca231ae25cfcd348c0fc509ecedd9dbf7a1128e8fc5f397",
+      "role": "examiner",
+      "status": "active",
+      "createdAt": "2026-10-05T16:34:18.365Z",
+      "mustChangePassword": false,
+      "isAdmin": false,
+      "submissionStatus": "submitted",
+      "submittedAt": "2026-10-07T16:19:57.778Z"
     },
     {
       "id": 4,
-      "username": "rahul",
-      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
-      "role": "student"
+      "name": "Anu",
+      "username": "anu",
+      "passwordHash": "9ffc27efbf42a19e6a7bab67bfa81c38:1cf594487052aeadf489bdd8eabad26f8f852c986805deac699618ebe5a70f36ef79cffcc461745dfe17a661624e45e4377509c17e7a599a40b055a0d798a49c",
+      "role": "examiner",
+      "status": "active",
+      "createdAt": "2026-10-05T16:34:21.072Z",
+      "mustChangePassword": false,
+      "isAdmin": false,
+      "submissionStatus": "draft"
     },
     {
       "id": 5,
-      "username": "priya",
-      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "username": "1",
+      "passwordHash": "0c9f47dbb7bad8f204b134277a51b2ca:7e8d5969ab8675b7caa0e4d258384f62974e2426c7e942f61f6cdcbe5b43c6f40002639f53267e281c12cb81f0463810fb2a1c969599d8822fdb14e5ebff1d53",
       "role": "student"
     },
     {
       "id": 6,
-      "username": "arjun",
-      "passwordHash": "0123456789abcdef0123456789abcdef:7bfc2ad8e90d7252b24c322d25a3ef314bb6f3b0ad29738a3140d921aa2606024e5f3f7eef2b45dfb16dd5428705bb539af7384b2504308175cc714be9c428bf",
+      "username": "2",
+      "passwordHash": "42ead2b974987d4608813b3eec00b996:74f332ed19c288317b5bc0722cd2e58b05c8e95193629e63a91183a18cd06533388982636cfc3d39177e080a51db1eb216ecafe0e01c60890826f46a3092a559",
       "role": "student"
     },
     {
       "id": 7,
-      "username": "PQASAEGR05",
-      "passwordHash": "4361ae66d51ac51a97bd11c6501171bf:46b31a3559631da9a23183fc1981c179f7f9bdc2b37d86c77edd6f97acceb51e58fe131d00c3977a37959c4008d71e41eabdf62730dea2a7684532da4f0ac19c",
+      "username": "3",
+      "passwordHash": "381dbdf7e799ee0dd6658ac23f7dbc8a:e5d0ca7bdd8964f0f1c81b7e2cb2b000d539a71e3bbf92ab26d3c4119e63f44bc5b1adeb76d7406e97b2e9b748c762b0fdec71ad36097bd0156fce2727004e2b",
+      "role": "student"
+    },
+    {
+      "id": 8,
+      "username": "4",
+      "passwordHash": "7688e1cba8b99344b84d80b221b3cc4c:35f27a30b28c7f2e17ff75dcb88a2b8b06177a63b4a9d0982d087eaa9d87795b9f810eb464a7404b6edafec3e07d0a5454687a55b11ba2fa3a2f10cac08af1af",
+      "role": "student"
+    },
+    {
+      "id": 9,
+      "username": "5",
+      "passwordHash": "7665e5cf6bbb4c5813e1a8059750292d:76c3a574c052d2ce6b2a05a300e5efd89f4276990533bedca8ff95f383412f5660142fcc67ac7b3fb8cbf3799400d56e92bc8225fcc9bbab1a2803b2028b14ee",
+      "role": "student"
+    },
+    {
+      "id": 10,
+      "username": "test101",
+      "passwordHash": "35e8e112199f0629d9c362381e47fd33:cdb10a4846c4deb67deec1ff516d5b87bc15ea2f061c3ebd039c69c4b1426a752c0c28f63177a61ce5b74ef34e850d7ed05618c704480ec80daa8143eefb9f74",
+      "role": "student"
+    },
+    {
+      "id": 11,
+      "username": "excel901",
+      "passwordHash": "e4e9048ce740bb7941e40210954dda33:0885301c2c7e2fa7b5819535275cdb19a191fb9de504ce29d98bad75d767745226772ebb3ba2e8464ddf5b64c9bf324caa4b5c01f9d60e7795cd903fdf790946",
+      "role": "student"
+    },
+    {
+      "id": 12,
+      "username": "excel902",
+      "passwordHash": "0faad798d7d3132b9b5fdd8373ab0af9:0c33152dc117677a97b5cf1eeb049235e017c5b252d4c65d704ece8c68cc3bc5a208f2eee353724a5c9e83693c7d125617462c80317d5d6eee3388a32928b258",
       "role": "student"
     }
   ],
   "students": [
     {
       "id": 1,
-      "userId": 3,
-      "rollNo": "PQASAEGR01",
-      "name": "Anu",
-      "course": "B.Tech Computer Science & Engineering"
+      "examinerId": 3,
+      "userId": 5,
+      "rollNo": "1",
+      "name": "Rasss",
+      "course": "SSLC"
     },
     {
       "id": 2,
-      "userId": 4,
-      "rollNo": "PQASAEGR02",
-      "name": "Rahul Sharma",
-      "course": "B.Tech Computer Science & Engineering"
+      "examinerId": 3,
+      "userId": 6,
+      "rollNo": "2",
+      "name": "Fasss",
+      "course": "SSLC"
     },
     {
       "id": 3,
-      "userId": 5,
-      "rollNo": "PQASAEGR03",
-      "name": "Priya Patel",
-      "course": "B.Tech Computer Science & Engineering"
+      "examinerId": 3,
+      "userId": 7,
+      "rollNo": "3",
+      "name": "Masss",
+      "course": "SSLC"
     },
     {
       "id": 4,
-      "userId": 6,
-      "rollNo": "PQASAEGR04",
-      "name": "Arjun Verma",
-      "course": "B.Tech Computer Science & Engineering"
+      "examinerId": 3,
+      "userId": 8,
+      "rollNo": "4",
+      "name": "Jasss",
+      "course": "SSLC"
     },
     {
       "id": 5,
-      "userId": 7,
-      "rollNo": "PQASAEGR05",
-      "name": "Rua",
-      "course": "B.Tech Computer Science & Engineering"
+      "examinerId": 3,
+      "userId": 9,
+      "rollNo": "5",
+      "name": "Lasss",
+      "course": "SSLC"
+    },
+    {
+      "id": 6,
+      "examinerId": 3,
+      "userId": 10,
+      "rollNo": "TEST_101",
+      "name": "Student Duplicate",
+      "course": "SSLC"
+    },
+    {
+      "id": 7,
+      "examinerId": 3,
+      "userId": 11,
+      "rollNo": "EXCEL_901",
+      "name": "Rohan Varma",
+      "course": "SSLC"
+    },
+    {
+      "id": 8,
+      "examinerId": 3,
+      "userId": 12,
+      "rollNo": "EXCEL_902",
+      "name": "Meera Sen",
+      "course": "SSLC"
     }
   ],
   "marks": [
@@ -87,93 +158,325 @@
       "id": 1,
       "studentId": 1,
       "exam": "Term 1",
-      "subject": "Data Structures & Algorithms",
-      "marks": 92,
+      "subject": "English",
+      "marks": 12,
       "maxMarks": 100
     },
     {
       "id": 2,
       "studentId": 1,
       "exam": "Term 1",
-      "subject": "Computer Architecture",
-      "marks": 86,
+      "subject": "Maths",
+      "marks": 54,
       "maxMarks": 100
     },
     {
       "id": 3,
       "studentId": 1,
       "exam": "Term 1",
-      "subject": "Discrete Mathematics",
-      "marks": 90,
+      "subject": "Hindi",
+      "marks": 45,
       "maxMarks": 100
     },
     {
       "id": 4,
       "studentId": 1,
-      "exam": "Term 2",
-      "subject": "Data Structures & Algorithms",
-      "marks": 95,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 25,
       "maxMarks": 100
     },
     {
       "id": 5,
       "studentId": 1,
-      "exam": "Term 2",
-      "subject": "Database Management Systems",
-      "marks": 89,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 72,
       "maxMarks": 100
     },
     {
       "id": 6,
       "studentId": 2,
       "exam": "Term 1",
-      "subject": "Data Structures & Algorithms",
-      "marks": 75,
+      "subject": "English",
+      "marks": 65,
       "maxMarks": 100
     },
     {
       "id": 7,
       "studentId": 2,
       "exam": "Term 1",
-      "subject": "Computer Architecture",
-      "marks": 68,
+      "subject": "Maths",
+      "marks": 25,
       "maxMarks": 100
     },
     {
       "id": 8,
-      "studentId": 3,
+      "studentId": 2,
       "exam": "Term 1",
-      "subject": "Data Structures & Algorithms",
-      "marks": 98,
+      "subject": "Hindi",
+      "marks": 32,
       "maxMarks": 100
     },
     {
       "id": 9,
-      "studentId": 3,
+      "studentId": 2,
       "exam": "Term 1",
-      "subject": "Computer Architecture",
-      "marks": 96,
+      "subject": "Social",
+      "marks": 32,
       "maxMarks": 100
     },
     {
       "id": 10,
-      "studentId": 5,
+      "studentId": 2,
       "exam": "Term 1",
-      "subject": "English",
-      "marks": 45,
+      "subject": "Science",
+      "marks": 98,
       "maxMarks": 100
     },
     {
       "id": 11,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 65,
+      "maxMarks": 100
+    },
+    {
+      "id": 12,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 48,
+      "maxMarks": 100
+    },
+    {
+      "id": 13,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 95,
+      "maxMarks": 100
+    },
+    {
+      "id": 14,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 85,
+      "maxMarks": 100
+    },
+    {
+      "id": 15,
+      "studentId": 3,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 53,
+      "maxMarks": 100
+    },
+    {
+      "id": 16,
+      "studentId": 4,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 98,
+      "maxMarks": 100
+    },
+    {
+      "id": 17,
+      "studentId": 4,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 95,
+      "maxMarks": 100
+    },
+    {
+      "id": 18,
+      "studentId": 4,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 84,
+      "maxMarks": 100
+    },
+    {
+      "id": 19,
+      "studentId": 4,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 96,
+      "maxMarks": 100
+    },
+    {
+      "id": 20,
+      "studentId": 4,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 85,
+      "maxMarks": 100
+    },
+    {
+      "id": 21,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 32,
+      "maxMarks": 100
+    },
+    {
+      "id": 22,
       "studentId": 5,
       "exam": "Term 1",
       "subject": "Maths",
-      "marks": 29,
+      "marks": 32,
+      "maxMarks": 100
+    },
+    {
+      "id": 23,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 15,
+      "maxMarks": 100
+    },
+    {
+      "id": 24,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 23,
+      "maxMarks": 100
+    },
+    {
+      "id": 25,
+      "studentId": 5,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 15,
+      "maxMarks": 100
+    },
+    {
+      "id": 26,
+      "studentId": 6,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 70,
+      "maxMarks": 100
+    },
+    {
+      "id": 27,
+      "studentId": 6,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 65,
+      "maxMarks": 100
+    },
+    {
+      "id": 28,
+      "studentId": 6,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 75,
+      "maxMarks": 100
+    },
+    {
+      "id": 29,
+      "studentId": 6,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 80,
+      "maxMarks": 100
+    },
+    {
+      "id": 30,
+      "studentId": 6,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 72,
+      "maxMarks": 100
+    },
+    {
+      "id": 31,
+      "studentId": 7,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 88,
+      "maxMarks": 100
+    },
+    {
+      "id": 32,
+      "studentId": 7,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 92,
+      "maxMarks": 100
+    },
+    {
+      "id": 33,
+      "studentId": 7,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 79,
+      "maxMarks": 100
+    },
+    {
+      "id": 34,
+      "studentId": 7,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 85,
+      "maxMarks": 100
+    },
+    {
+      "id": 35,
+      "studentId": 7,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 90,
+      "maxMarks": 100
+    },
+    {
+      "id": 36,
+      "studentId": 8,
+      "exam": "Term 1",
+      "subject": "English",
+      "marks": 72,
+      "maxMarks": 100
+    },
+    {
+      "id": 37,
+      "studentId": 8,
+      "exam": "Term 1",
+      "subject": "Maths",
+      "marks": 68,
+      "maxMarks": 100
+    },
+    {
+      "id": 38,
+      "studentId": 8,
+      "exam": "Term 1",
+      "subject": "Hindi",
+      "marks": 80,
+      "maxMarks": 100
+    },
+    {
+      "id": 39,
+      "studentId": 8,
+      "exam": "Term 1",
+      "subject": "Social",
+      "marks": 74,
+      "maxMarks": 100
+    },
+    {
+      "id": 40,
+      "studentId": 8,
+      "exam": "Term 1",
+      "subject": "Science",
+      "marks": 76,
       "maxMarks": 100
     }
   ],
-  "nextUserId": 10,
-  "nextStudentId": 8,
-  "nextMarkId": 12,
-  "lastUpdated": "2026-10-03T08:19:11.688Z"
+  "nextUserId": 13,
+  "nextStudentId": 9,
+  "nextMarkId": 41,
+  "lastUpdated": "2026-10-07T16:19:57.779Z"
 }

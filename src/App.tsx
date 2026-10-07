@@ -13,7 +13,11 @@ export default function App() {
   const [session, setSession] = useState<{
     authenticated: boolean;
     role?: 'examiner' | 'student';
+    id?: number;
     username?: string;
+    examinerName?: string;
+    isAdmin?: boolean;
+    mustChangePassword?: boolean;
     student?: any;
     isPublished?: boolean;
   }>({
@@ -83,28 +87,6 @@ export default function App() {
 
   // Instant 1-click role switcher between Examiner and Student
   const handleSwitchRole = async (targetRole: 'examiner' | 'student') => {
-    if (targetRole === 'student') {
-      setSession({
-        authenticated: true,
-        role: 'student',
-        username: 'anu',
-        student: {
-          id: 1,
-          name: 'Anu',
-          rollNo: 'PQASAEGR01',
-          course: 'B.Tech Computer Science & Engineering',
-        },
-        isPublished: true,
-      });
-    } else {
-      setSession({
-        authenticated: true,
-        role: 'examiner',
-        username: 'examiner',
-        isPublished: true,
-      });
-    }
-
     try {
       const res = await apiFetch('/api/session/switch-role', {
         method: 'POST',
@@ -112,20 +94,50 @@ export default function App() {
         body: JSON.stringify({ role: targetRole }),
       });
       const data = await res.json();
-      if (data?.token) {
-        setStoredSessionToken(data.token);
+      if (res.ok && data) {
+        if (data.token) {
+          setStoredSessionToken(data.token);
+        }
+        if (data.role === 'student' && data.student) {
+          setSession({
+            authenticated: true,
+            role: 'student',
+            username: data.username,
+            student: data.student,
+            isPublished: true,
+          });
+          setActiveTab('student');
+        } else if (data.role === 'examiner') {
+          setSession({
+            authenticated: true,
+            role: 'examiner',
+            username: data.username,
+            isPublished: true,
+          });
+          setActiveTab('examiner');
+        }
+      } else {
+        if (targetRole === 'student') {
+          // If no student exists in database, show student login tab
+          setSession({ authenticated: false });
+          setActiveTab('student');
+        }
       }
     } catch {
-      // optimistic state is active
+      // Keep optimistic or current state
     }
     fetchPublicInfo();
   };
 
-  const handleExaminerSuccess = (username: string) => {
+  const handleExaminerSuccess = (username: string, examinerData?: any) => {
     setSession({
       authenticated: true,
       role: 'examiner',
-      username,
+      id: examinerData?.id,
+      username: username || examinerData?.username,
+      examinerName: examinerData?.examinerName || examinerData?.name || username,
+      isAdmin: !!examinerData?.isAdmin,
+      mustChangePassword: !!examinerData?.mustChangePassword,
     });
     fetchPublicInfo();
   };
@@ -148,6 +160,8 @@ export default function App() {
       <Header
         role={session.authenticated ? session.role : null}
         username={session.username}
+        examinerName={session.examinerName}
+        isAdmin={session.isAdmin}
         studentName={session.student?.name}
         onLogout={handleLogout}
         activeTab={activeTab}
@@ -159,7 +173,16 @@ export default function App() {
       {/* Main Content Body */}
       <main className="flex-1">
         {session.authenticated && session.role === 'examiner' ? (
-          <ExaminerDashboard onLogout={handleLogout} onOpenRules={() => setIsRulesModalOpen(true)} />
+          <ExaminerDashboard
+            onLogout={handleLogout}
+            onOpenRules={() => setIsRulesModalOpen(true)}
+            examinerName={session.examinerName}
+            username={session.username}
+            isAdmin={session.isAdmin}
+            mustChangePassword={session.mustChangePassword}
+            currentUserId={session.id}
+            onSessionUpdate={(updated) => setSession((prev) => ({ ...prev, ...updated }))}
+          />
         ) : session.authenticated && session.role === 'student' ? (
           <StudentResultView onLogout={handleLogout} onOpenRules={() => setIsRulesModalOpen(true)} />
         ) : (
